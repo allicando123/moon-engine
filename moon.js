@@ -4049,6 +4049,52 @@ let Moon = (function() {
                 return TileMap;
             }());
 
+            // 瓷砖地图管理器
+            tileEngine2D.TileMapManager = (function() {
+                /**
+                 * 瓷砖地图管理器
+                 */
+                function TileMapManager() {
+                    this.tileMaps = {};
+                    this.world = null;
+                    this.currentMap = null;
+                }
+                /**
+                 * 添加瓷砖地图
+                 */
+                TileMapManager.prototype.addMap = function(name, map) {
+                    this.tileMaps[name] = map;
+                    if (this.currentMap == null)
+                        this.currentMap = map;
+                };
+                /**
+                 * 绑定世界
+                 */
+                TileMapManager.prototype.bindWorld = function(world) {
+                    this.world = world;
+                };
+                /**
+                 * 设置当前地图
+                 */
+                TileMapManager.prototype.setMap = function(name) {
+                    this.currentMap = this.tileMaps[name];
+                };
+                /**
+                 * 更新
+                 */
+                TileMapManager.prototype.update = function() {
+                    this.world.run();
+                    this.currentMap.update();
+                };
+                /**
+                 * 绘制
+                 */
+                TileMapManager.prototype.draw = function() {
+                    this.currentMap.draw();
+                };
+                return TileMapManager;
+            }());
+
             return tileEngine2D;
         }());
 
