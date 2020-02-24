@@ -3509,6 +3509,28 @@ let Moon = (function() {
             }
 
             /**
+             * 手柄震动
+             * @param {gamepad.PlayerIndex} playerIndex 用户手柄
+             * @param {number} delay 延迟震动，在delay毫秒后震动
+             * @param {number} duration 持续时间，持续duration时间，不可长时间
+             * @param {number} weak 从虚弱振动开始，0~1
+             * @param {number} strong 振动到最强，0~1
+             */
+            gamepad.shake = function(playerIndex, delay, duration, weak, strong) {
+                let pad = gamepads[playerIndex];
+                if (pad) {
+                    pad.state.vibrationActuator.playEffect(
+                        pad.state.vibrationActuator.type, {
+                            startDelay: delay,
+                            duration: duration,
+                            weakMagnitude: weak,
+                            strongMagnitude: strong
+                        }
+                    );
+                }
+            }
+
+            /**
              * 是否激活手柄
              */
             gamepad.enable = function(flag) {
