@@ -3345,6 +3345,179 @@ let Moon = (function() {
             return touch;
         }());
 
+        // 手柄
+        input.Gamepad = (function() {
+            let gamepad = {};
+
+            /**
+             * 手柄按键
+             */
+            gamepad.Keys = {
+                A: 0,
+                B: 1,
+                X: 2,
+                Y: 3,
+                LB: 4,
+                RB: 5,
+                LT: 6,
+                RT: 7,
+                BACK: 8,
+                START: 9,
+                L: 10,
+                R: 11,
+                UP: 12,
+                DOWN: 13,
+                LEFT: 14,
+                RIGHT: 15,
+                MAIN: 16,
+                L_LEFT: 30, // 30 >> 5 = 0
+                L_RIGHT: 31, // 0
+                L_UP: 62, // 1
+                L_DOWN: 63, // 1
+                R_LEFT: 94, // 2
+                R_RIGHT: 95, // 2
+                R_UP: 126, // 3
+                R_DOWN: 127, // 3
+            }; // 手柄按钮通过移位操作，>> 5，大于16的轴通过移位axes数组
+
+
+            /**
+             * 阈值，超过阈值才算触发
+             */
+            gamepad.threshold = {
+                axes: 0.1,
+                button: 0.1, // 主要代表trigger阈值
+            };
+
+            /**
+             * 手柄用户，最多支持4个手柄
+             */
+            gamepad.PlayerIndex = {
+                palyer1: 0,
+                player2: 1,
+                player3: 2,
+                player4: 3
+            };
+
+            let gamepads = {}; // 保存手柄的信息
+
+            // 手柄连接
+            function connect(event) {
+                gamepads[event.gamepad.index] = {
+                    id: event.gamepad.id,
+                    connecting: true,
+                    lastState: null,
+                    state: event.gamepad
+                };
+            }
+
+            // 手柄断开连接
+            function disconnect(event) {
+                delete gamepads[event.gamepad.index];
+            }
+
+            // 添加监听
+            function addListener() {
+                window.addEventListener('gamepadconnected', connect);
+                window.addEventListener('gamepaddisconnected', disconnect);
+            }
+
+            // 移除监听
+            function removeListener() {
+                window.removeEventListener('gamepadconnected', connect);
+                window.removeEventListener('gamepaddisconnected', disconnect);
+            }
+
+            /**
+             * 手柄信息更新，启动手柄后调用
+             */
+            gamepad.update = function() {
+                for (let pad in gamepads) {
+                    gamepads[pad].lastState = gamepads[pad].state;
+                    gamepads[pad].state = navigator.getGamepads()[pad];
+                }
+            }
+
+            // 获取按键值
+            gamepad.getKeyValue = function(playerIndex, key) {
+                if (key < 17)
+                    return gamepads[playerIndex].state.buttons[key].value;
+                else
+                    return gamepads[playerIndex].state.axes[key >> 5];
+            }
+
+            /**
+             * 手柄按下事件
+             */
+            gamepad.onKeyDown = function(playerIndex, key) {
+                let pad = gamepads[playerIndex];
+                if (pad) {
+                    if (key < 17)
+                        return pad.state.buttons[key].pressed;
+                    else {
+                        let k = key >> 5;
+                        return (key % 2 == 0 ? pad.state.axes[k] <= -this.threshold.axes :
+                            pad.state.axes[k] >= this.threshold.axes);
+                    }
+                }
+                return false;
+            }
+
+            /**
+             * 手柄按下时事件
+             */
+            gamepad.onKeyPress = function(playerIndex, key) {
+                let pad = gamepads[playerIndex];
+                if (pad) {
+                    if (key < 17)
+                        return !pad.lastState.buttons[key].pressed &&
+                            pad.state.buttons[key].pressed;
+                    else {
+                        let k = key >> 5;
+                        return (key % 2 == 0 ?
+                            (pad.lastState.axes[k] > -this.threshold.axes &&
+                                pad.state.axes[k] <= -this.threshold.axes) :
+                            (pad.lastState.axes[k] < this.threshold.axes &&
+                                pad.state.axes[k] >= this.threshold.axes));
+
+                    }
+                }
+                return false;
+
+            }
+
+            /**
+             * 手柄松开时事件
+             */
+            gamepad.onKeyRelease = function(playerIndex, key) {
+                let pad = gamepads[playerIndex];
+                if (pad) {
+                    if (key < 17)
+                        return pad.lastState.buttons[key].pressed &&
+                            !pad.state.buttons[key].pressed;
+                    else {
+                        let k = key >> 5;
+                        return (key % 2 == 0 ?
+                            (pad.lastState.axes[k] <= -this.threshold.axes &&
+                                pad.state.axes[k] > -this.threshold.axes) :
+                            (pad.lastState.axes[k] >= this.threshold.axes &&
+                                pad.state.axes[k] < this.threshold.axes));
+
+                    }
+                }
+                return false;
+            }
+
+            /**
+             * 是否激活手柄
+             */
+            gamepad.enable = function(flag) {
+                flag ? addListener() : removeListener();
+            }
+
+            return gamepad;
+        }());
+
 
         return input;
     }());
