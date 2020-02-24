@@ -32,11 +32,11 @@ Moon.Game.Resource; // 游戏资源管理器
 3. 配置setting.json文件
 ```json
 {
-    "canvas": "canvas", // 画布id
-    "width": 800, // 画布宽度，可选，默认为800
-    "height": 600, // 画布高度，可选，默认为600
-    "main": "./game.js", // 主游戏文件
-    "plugin": [] // 插件数组，相对于app.js的相对路径
+    "canvas": "canvas", //画布id
+    "width": 800, //画布宽度，可选，默认为800
+    "height": 600, //画布高度，可选，默认为600
+    "main": "./game.js", //主游戏文件
+    "plugin": [] //插件数组，相对于app.js的相对路径
 }
 ```
 4. 在主游戏文件中编写代码
