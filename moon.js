@@ -1378,6 +1378,9 @@ let Moon = (function() {
                  * 着色器程序
                  */
                 const SHADER = {
+                    /**
+                     * 简单着色器
+                     */
                     SIMPLE: {
                         VERTEX_SHADER: // 顶点着色器
                             'attribute vec4 a_Position;' +
@@ -1397,7 +1400,24 @@ let Moon = (function() {
                             'uniform vec4 u_Color;' +
                             'varying vec2 v_TexCoord;' +
                             'void main() {' +
-                            'gl_FragColor =  u_Color * texture2D(u_Sampler, v_TexCoord);' + // 叠加颜色
+                            'gl_FragColor = u_Color * texture2D(u_Sampler, v_TexCoord);' + // 叠加颜色
+                            'if(gl_FragColor.a < 0.1) discard;' + // 显示透明度使用
+                            '}'
+                    },
+                    /**
+                     * 简单灯光着色器
+                     */
+                    SIMPLE_LIGHT: {
+                        FRAGMENT_SHADER: // 片段着色器
+                            'precision mediump float;' +
+                            'uniform sampler2D u_Sampler;' +
+                            'uniform vec4 u_Color;' + // 叠加颜色，在此可以当作灯光受用
+                            'uniform float u_Ambient;' + // 周围环境光强度
+                            'uniform vec3 u_LightColor;' + // 灯光颜色
+                            'varying vec2 v_TexCoord;' +
+                            'void main() {' +
+                            'vec4 ambient = vec4((u_LightColor * u_Ambient), 1.0);' + // 计算出环境光
+                            'gl_FragColor = anbient * u_Color * texture2D(u_Sampler, v_TexCoord);' + // 叠加颜色
                             'if(gl_FragColor.a < 0.1) discard;' + // 显示透明度使用
                             '}'
                     }
