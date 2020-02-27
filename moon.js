@@ -1374,6 +1374,40 @@ let Moon = (function() {
                     'if(gl_FragColor.a < 0.1) discard;' + // 显示透明度使用
                     '}';
 
+                /**
+                 * 着色器程序
+                 */
+                const SHADER = {
+                    SIMPLE: {
+                        VERTEX_SHADER: // 顶点着色器
+                            'attribute vec4 a_Position;' +
+                            'attribute vec2 a_TexCoord;' +
+                            'uniform mat4 u_Projection;' + // 坐标系转换矩阵
+                            'uniform mat4 u_View;' + // 摄像机矩阵
+                            'uniform mat4 u_Transform;' + // 变换矩阵
+                            'uniform mat4 u_TexTransform;' +
+                            'varying vec2 v_TexCoord;' +
+                            'void main() {' +
+                            'gl_Position = u_Projection * u_View * u_Transform * a_Position;' +
+                            'v_TexCoord = (u_TexTransform * vec4(a_TexCoord, 0, 1.0)).xy;' +
+                            '}',
+                        FRAGMENT_SHADER: // 片段着色器
+                            'precision mediump float;' +
+                            'uniform sampler2D u_Sampler;' +
+                            'uniform vec4 u_Color;' +
+                            'varying vec2 v_TexCoord;' +
+                            'void main() {' +
+                            'gl_FragColor =  u_Color * texture2D(u_Sampler, v_TexCoord);' + // 叠加颜色
+                            'if(gl_FragColor.a < 0.1) discard;' + // 显示透明度使用
+                            '}'
+                    }
+                }
+
+                /**
+                 * 着色器程序
+                 */
+                let PROGRAM = {};
+
                 let shaderUniform = {}; // 保存着色器中不变对象
 
                 // 绘制图片的顶点
@@ -1396,7 +1430,7 @@ let Moon = (function() {
                     this.fillColor = '#bbffff'; // 全局填充色
                     this.width = 1; // 全局绘图大小
                     this.imageColor = new Float32Array([1.0, 1.0, 1.0, 1.0]); // 默认叠加色
-                    this.program = drawing3D.createProgram(ctx, VERTEX_SHADER, FRAGMENT_SHADER); // 着色器程序
+                    PROGRAM.SIMPLE = drawing3D.createProgram(ctx, SHADER.SIMPLE.VERTEX_SHADER, SHADER.SIMPLE.FRAGMENT_SHADER); // 着色器程序
 
                     this.gl.clearColor(255, 255, 255, 255); // 设置清屏颜色
 
@@ -1404,7 +1438,7 @@ let Moon = (function() {
                     this.gl.depthFunc(this.gl.LEQUAL);
 
                     // 使用当前着色器程序
-                    this.gl.useProgram(this.program);
+                    this.gl.useProgram(PROGRAM.SIMPLE);
 
 
                     // 摄像机矩阵
@@ -1415,11 +1449,11 @@ let Moon = (function() {
                     this.clearOption = this.gl.COLOR_BUFFER_BIT;
 
                     // 获取不变对象
-                    let u_Projection = this.gl.getUniformLocation(this.program, 'u_Projection');
-                    let u_View = this.gl.getUniformLocation(this.program, 'u_View');
-                    let u_Transform = this.gl.getUniformLocation(this.program, 'u_Transform');
-                    let u_TexTransform = this.gl.getUniformLocation(this.program, 'u_TexTransform');
-                    let u_Color = this.gl.getUniformLocation(this.program, 'u_Color');
+                    let u_Projection = this.gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Projection');
+                    let u_View = this.gl.getUniformLocation(PROGRAM.SIMPLE, 'u_View');
+                    let u_Transform = this.gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Transform');
+                    let u_TexTransform = this.gl.getUniformLocation(PROGRAM.SIMPLE, 'u_TexTransform');
+                    let u_Color = this.gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Color');
 
                     shaderUniform.u_Projection = u_Projection;
                     shaderUniform.u_View = u_View;
@@ -1474,17 +1508,17 @@ let Moon = (function() {
                     gl.bufferData(gl.ARRAY_BUFFER, IMAGE_VERTICES, gl.STATIC_DRAW); // 填写缓冲区,静态绘制
 
                     // 传输着色器程序内容
-                    let a_Position = gl.getAttribLocation(this.program, 'a_Position');
+                    let a_Position = gl.getAttribLocation(PROGRAM.SIMPLE, 'a_Position');
                     gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, FSIZE * 4, 0); // 将前两位坐标填入
                     gl.enableVertexAttribArray(a_Position);
 
-                    let a_TexCoord = gl.getAttribLocation(this.program, 'a_TexCoord'); // 贴图坐标
+                    let a_TexCoord = gl.getAttribLocation(PROGRAM.SIMPLE, 'a_TexCoord'); // 贴图坐标
                     gl.vertexAttribPointer(a_TexCoord, 2, gl.FLOAT, false, FSIZE * 4, FSIZE * 2); // 将后两位填入
                     gl.enableVertexAttribArray(a_TexCoord);
 
                     // 创建贴图
                     let tex = gl.createTexture();
-                    let u_Sampler = gl.getUniformLocation(this.program, 'u_Sample'); // 获取样本值
+                    let u_Sampler = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Sample'); // 获取样本值
 
 
                     // 贴图类
@@ -1518,7 +1552,7 @@ let Moon = (function() {
                 Drawing2D.prototype.drawPicture = function(texture, dest, color, depth) {
                         let gl = this.gl;
                         // 使用2D绘图着色器程序
-                        gl.useProgram(this.program);
+                        gl.useProgram(PROGRAM.SIMPLE);
                         // 激活图元0
                         gl.activeTexture(gl.TEXTURE0);
                         // 绑定贴图
@@ -1528,16 +1562,16 @@ let Moon = (function() {
                         let mat4 = drawing3D.Matrix.mat4;
 
                         // 设置转换坐标系矩阵
-                        // let u_Projection = gl.getUniformLocation(this.program, 'u_Projection');
+                        // let u_Projection = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Projection');
                         // gl.uniformMatrix4fv(u_Projection, false, this.projection);
 
                         // 设置视角矩阵
-                        // let u_View = gl.getUniformLocation(this.program, 'u_View');
+                        // let u_View = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_View');
                         gl.uniformMatrix4fv(shaderUniform.u_View, false, moon.Game.Camera.getMatrix());
 
                         // 进行坐标变换
                         // 获取着色器变换值
-                        // let u_Transform = gl.getUniformLocation(this.program, 'u_Transform');
+                        // let u_Transform = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Transform');
                         // 转换坐标系，并生成矩阵
                         let mt = mat4.origin();
                         // 平移矩阵
@@ -1549,11 +1583,11 @@ let Moon = (function() {
                         gl.uniformMatrix4fv(shaderUniform.u_Transform, false, mt);
 
                         // 贴图坐标变换
-                        // let u_TexTransform = gl.getUniformLocation(this.program, 'u_TexTransform');
+                        // let u_TexTransform = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_TexTransform');
                         gl.uniformMatrix4fv(shaderUniform.u_TexTransform, false, mat4.constOrigin());
 
                         // 设置叠加色
-                        // let u_Color = gl.getUniformLocation(this.program, 'u_Color');
+                        // let u_Color = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Color');
 
                         // 设置叠加色
                         gl.uniform4fv(shaderUniform.u_Color, color || this.imageColor);
@@ -1567,7 +1601,7 @@ let Moon = (function() {
                 Drawing2D.prototype.drawSprite = function(texture, src, dest, color, depth) {
                     let gl = this.gl;
                     // 使用2D绘图着色器程序
-                    gl.useProgram(this.program);
+                    gl.useProgram(PROGRAM.SIMPLE);
                     // 激活图元0
                     gl.activeTexture(gl.TEXTURE0);
                     // 绑定贴图
@@ -1578,16 +1612,16 @@ let Moon = (function() {
                     let mat4 = drawing3D.Matrix.mat4;
 
                     // 设置转换坐标系矩阵
-                    // let u_Projection = gl.getUniformLocation(this.program, 'u_Projection');
+                    // let u_Projection = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Projection');
                     // gl.uniformMatrix4fv(u_Projection, false, this.projection);
 
                     // 设置视角矩阵
-                    // let u_View = gl.getUniformLocation(this.program, 'u_View');
+                    // let u_View = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_View');
                     gl.uniformMatrix4fv(shaderUniform.u_View, false, moon.Game.Camera.getMatrix());
 
                     // 进行坐标变换
                     // 获取着色器变换值
-                    // let u_Transform = gl.getUniformLocation(this.program, 'u_Transform');
+                    // let u_Transform = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Transform');
 
                     // 转换坐标系，并生成矩阵
                     let mt = mat4.origin();
@@ -1600,7 +1634,7 @@ let Moon = (function() {
                     gl.uniformMatrix4fv(shaderUniform.u_Transform, false, mt);
 
                     // 贴图坐标变换
-                    // let u_TexTransform = gl.getUniformLocation(this.program, 'u_TexTransform');
+                    // let u_TexTransform = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_TexTransform');
 
                     // 贴图四阶矩阵
                     let tmt = mat4.origin();
@@ -1611,7 +1645,7 @@ let Moon = (function() {
                     gl.uniformMatrix4fv(shaderUniform.u_TexTransform, false, tmt);
 
                     // 设置叠加色
-                    // let u_Color = gl.getUniformLocation(this.program, 'u_Color');
+                    // let u_Color = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Color');
 
                     // 设置叠加色
                     gl.uniform4fv(shaderUniform.u_Color, color || this.imageColor);
@@ -1625,7 +1659,7 @@ let Moon = (function() {
                 Drawing2D.prototype.picture = function(texture, dest, center, angle, filter, color, depth) {
                     let gl = this.gl;
                     // 使用2D绘图着色器程序
-                    gl.useProgram(this.program);
+                    gl.useProgram(PROGRAM.SIMPLE);
                     // 激活图元0
                     gl.activeTexture(gl.TEXTURE0);
                     // 绑定贴图
@@ -1634,16 +1668,16 @@ let Moon = (function() {
                     // 使用四阶矩阵
                     let mat4 = drawing3D.Matrix.mat4;
                     // 设置转换坐标系矩阵
-                    // let u_Projection = gl.getUniformLocation(this.program, 'u_Projection');
+                    // let u_Projection = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Projection');
                     // gl.uniformMatrix4fv(u_Projection, false, this.projection);
 
                     // 设置视角矩阵
-                    // let u_View = gl.getUniformLocation(this.program, 'u_View');
+                    // let u_View = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_View');
                     gl.uniformMatrix4fv(shaderUniform.u_View, false, moon.Game.Camera.getMatrix());
 
                     // 进行坐标变换
                     // 获取着色器变换值
-                    // let u_Transform = gl.getUniformLocation(this.program, 'u_Transform');
+                    // let u_Transform = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Transform');
 
                     // 转换坐标系，并生成矩阵
                     let mt = mat4.origin();
@@ -1671,11 +1705,11 @@ let Moon = (function() {
                     gl.uniformMatrix4fv(shaderUniform.u_Transform, false, mt);
 
                     // 贴图坐标变换
-                    // let u_TexTransform = gl.getUniformLocation(this.program, 'u_TexTransform');
+                    // let u_TexTransform = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_TexTransform');
                     gl.uniformMatrix4fv(shaderUniform.u_TexTransform, false, mat4.constOrigin());
 
                     // 设置叠加色
-                    // let u_Color = gl.getUniformLocation(this.program, 'u_Color');
+                    // let u_Color = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Color');
 
                     // 设置叠加色
                     gl.uniform4fv(shaderUniform.u_Color, color || this.imageColor);
@@ -1689,7 +1723,7 @@ let Moon = (function() {
                 Drawing2D.prototype.sprite = function(texture, src, dest, center, angle, filter, color, depth) {
                     let gl = this.gl;
                     // 使用2D绘图着色器程序
-                    gl.useProgram(this.program);
+                    gl.useProgram(PROGRAM.SIMPLE);
                     // 激活图元0
                     gl.activeTexture(gl.TEXTURE0);
                     // 绑定贴图
@@ -1698,16 +1732,16 @@ let Moon = (function() {
                     // 使用四阶矩阵
                     let mat4 = drawing3D.Matrix.mat4;
                     // 设置转换坐标系矩阵
-                    // let u_Projection = gl.getUniformLocation(this.program, 'u_Projection');
+                    // let u_Projection = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Projection');
                     // gl.uniformMatrix4fv(u_Projection, false, this.projection);
 
                     // 设置视角矩阵
-                    // let u_View = gl.getUniformLocation(this.program, 'u_View');
+                    // let u_View = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_View');
                     gl.uniformMatrix4fv(shaderUniform.u_View, false, moon.Game.Camera.getMatrix());
 
                     // 进行坐标变换
                     // 获取着色器变换值
-                    // let u_Transform = gl.getUniformLocation(this.program, 'u_Transform');
+                    // let u_Transform = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Transform');
                     // 转换坐标系，并生成矩阵
                     let mt = mat4.origin();
 
@@ -1734,7 +1768,7 @@ let Moon = (function() {
                     gl.uniformMatrix4fv(shaderUniform.u_Transform, false, mt);
 
                     // 贴图坐标变换
-                    // let u_TexTransform = gl.getUniformLocation(this.program, 'u_TexTransform');
+                    // let u_TexTransform = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_TexTransform');
 
                     // 贴图四阶矩阵
                     let tmt = mat4.origin();
@@ -1746,7 +1780,7 @@ let Moon = (function() {
                     gl.uniformMatrix4fv(shaderUniform.u_TexTransform, false, tmt);
 
                     // 设置叠加色
-                    // let u_Color = gl.getUniformLocation(this.program, 'u_Color');
+                    // let u_Color = gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Color');
 
                     // 设置叠加色
                     gl.uniform4fv(shaderUniform.u_Color, color || this.imageColor);
