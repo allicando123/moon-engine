@@ -115,6 +115,34 @@ pannel.update = function() {
 Gamepad.shake(Gamepad.PlayerIndex.player1, 1000, 1000, 0, 1);
 ```
 
+2020-2-28 加入圆形灯光系统
+```javascript
+let g = Moon.Game.Drawing2D; // 获取图形模块
+let shaderProgram = Moon.Drawing.Drawing3D.Drawing2D.shaderProgram; // 不同的着色器程序
+g.changeProgram(shaderProgram.simpleLight); // 启动简单灯光着色器程序
+
+// 将环境光强度改为0.1
+g.changeAmbient(shaderProgram, 0.1);
+
+// 添加一个坐标为 (0,0) ，范围为 1000，颜色为白色的灯光
+// 范围是以canvas大小为比例
+// 生成灯光，并产生索引，索引从 0 递增
+g.addLight(shaderProgram.simpleLight, new Moon.Vector2(0, 0), 1000, new Float32Array([1.0, 1.0, 1.0]));
+
+// 将索引为 0 的灯光坐标变换到 (100,100) 处
+g.changeLightPosition(shaderProgram.simpleLight, 0, new Moon.Vector2(100, 100));
+
+// 将索引为 0 的灯光范围改为 800
+g.changeLightRadius(shaderProgram.simpleLight, 0, 800);
+
+// 将索引为 0 的灯光颜色改为红色
+g.changeLightColor(shanderProgram.simpleLight, 0, new Float32Array([1.0, 0.0, 0.0]));
+
+// 移除索引为 0 的颜色
+// 其索引之后的颜色索引自减 1
+g.removeLight(shanderProgram.simpleLight, 0);
+```
+
 #### 联系我
 Allicando123  
 邮箱: 825225994@qq.com  
