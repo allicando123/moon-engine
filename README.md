@@ -75,6 +75,7 @@ Moon.Game.start(); // 启动游戏
 #### 引擎支持
 
 > 支持键盘、鼠标、触控、手柄四种交互模块  
+> 支持灯光系统
 > 支持物理世界和网格世界  
 > 支持精灵动画，以及对精灵的图元各类变换  
 > 支持砖块世界  
@@ -122,7 +123,9 @@ let shaderProgram = Moon.Drawing.Drawing3D.Drawing2D.shaderProgram; // 不同的
 g.changeProgram(shaderProgram.simpleLight); // 启动简单灯光着色器程序
 
 // 将环境光强度改为0.1
-g.changeAmbient(shaderProgram, 0.1);
+g.changeAmbient(shaderProgram.simpleLight, 0.1);
+// 设置环境光颜色为绿色
+g.changeAmbientColor(shaderProgram.simpleLight, new Float32Array([0.0, 1.0, 0.0]));
 
 // 添加一个坐标为 (0,0) ，范围为 1000，颜色为白色的灯光
 // 范围是以canvas大小为比例
@@ -139,8 +142,43 @@ g.changeLightRadius(shaderProgram.simpleLight, 0, 800);
 g.changeLightColor(shanderProgram.simpleLight, 0, new Float32Array([1.0, 0.0, 0.0]));
 
 // 移除索引为 0 的颜色
-// 其索引之后的颜色索引自减 1
+// 其索引之后的灯光索引自减 1
 g.removeLight(shanderProgram.simpleLight, 0);
+```
+
+2020-2-28 圆形灯光系统环境
+> 将圆形灯光系统封装
+```javascript
+let Entity = Moon.Entity;
+
+// 启动圆形灯光系统
+Entity.SimpleLightEnvironment.enable(true);
+
+// 创建灯光环境实例
+let environment = new Entity.SimpleLightEnvironment();
+// 设置灯光强度
+environment.changeAmbient(0.2);
+// 改变环境光颜色为绿色
+environment.changeAmbientColor(new Float32Array([0.0, 1.0, 0.0]));
+
+// 创建灯光，灯光便会存在环境之中
+let light = environment.createLight(new Moon.Vector(0, 0), 1000, new Float32Array([1.0, 1.0, 1.0]));
+
+// 修改灯光属性
+light.position.x = 100;
+light.radius = 800;
+light.color[0] = 0;
+
+// 更新属性
+environment.updateLightPosition(light);
+environment.updateLightRadius(light);
+environment.updateLightColor(light);
+
+// 移除灯光
+environment.removeLight(light);
+
+// 将移除的灯光重新加入到环境之中
+environment.addLight(light);
 ```
 
 #### 联系我

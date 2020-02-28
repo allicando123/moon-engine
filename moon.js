@@ -1668,6 +1668,7 @@ let Moon = (function() {
 
                             // 设置灯光数量
                             this.gl.uniform1i(shaderUniform.simpleLight.u_LightCount, shaderUniform.simpleLight.lights.count);
+                            return i;
                             break;
                     }
                 };
@@ -1702,6 +1703,16 @@ let Moon = (function() {
                     switch (program) {
                         case Drawing2D.shaderProgram.simpleLight: // 简单灯光
                             this.gl.uniform1f(shaderUniform.simpleLight.u_Ambient, ambient);
+                            break;
+                    }
+                };
+                /**
+                 * 改变环境光颜色
+                 */
+                Drawing2D.prototype.changeAmbientColor = function(program, color) {
+                    switch (program) {
+                        case Drawing2D.shaderProgram.simpleLight: // 简单灯光
+                            this.gl.uniform3fv(shaderUniform.simpleLight.u_AmbientColor, color);
                             break;
                     }
                 };
@@ -4120,6 +4131,137 @@ let Moon = (function() {
         //     return Text;
         // }());
 
+
+
+        // 灯光管理器
+        entity.SimpleLightEnvironment = (function() {
+            // 内部类
+            // 灯光
+            function SimpleLight(position, radius, color) {
+                this.index = 0;
+                this.position = position || moon.Vector2(0, 0);
+                this.radius = radius || 1000;
+                this.color = color || new Float32Array([1.0, 1.0, 1.0]);
+            }
+
+
+            function SimpleLightEnvironment() {
+                this.lights = []; // 灯光数组
+            }
+            /**
+             * 开启灯光
+             */
+            SimpleLightEnvironment.enable = function(flag) {
+                if (flag) {
+                    // 开启灯光灯光着色器
+                    Game.Drawing2D.changeProgram(moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight);
+                } else {
+                    // 启动默认着色器程序
+                    Game.Drawing2D.changeProgram(
+                        moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simple
+                    );
+                }
+            };
+            // 构造函数
+            SimpleLightEnvironment.prototype.constructor = SimpleLightEnvironment;
+            /**
+             * 创建灯光
+             * @param {moon.Vector2} position 灯光位置
+             * @param {number} radius 灯光范围
+             * @param {Float32Array} color 灯光颜色
+             */
+            SimpleLightEnvironment.prototype.createLight = function(position, radius, color) {
+                let light = new SimpleLight(position, radius, color);
+                light.index = moon.Game.Drawing2D.addLight(
+                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                    light.position,
+                    light.radius,
+                    light.color
+                ); // 创建灯光
+                this.lights.push(light);
+                return light;
+            };
+            /**
+             * 添加灯光
+             */
+            SimpleLightEnvironment.prototype.addLight = function(light) {
+                light.index = moon.Game.Drawing2D.addLight(
+                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                    light.position,
+                    light.radius,
+                    light.color
+                ); // 创建灯光
+                this.lights.push(light);
+            };
+            /**
+             * 更新灯光坐标
+             */
+            SimpleLightEnvironment.prototype.updateLightPosition = function(light) {
+                // 更新光线坐标
+                moon.Game.Drawing2D.changeLightPosition(
+                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                    light.index,
+                    light.position
+                );
+            };
+            /**
+             * 更新灯光颜色
+             */
+            SimpleLightEnvironment.prototype.updateLightColor = function(light) {
+                // 更新光线坐标
+                moon.Game.Drawing2D.changeLightColor(
+                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                    light.index,
+                    light.color
+                );
+            };
+            /**
+             * 更新灯光范围
+             */
+            SimpleLightEnvironment.prototype.updateLightRadius = function(light) {
+                // 更新光线范围
+                moon.Game.Drawing2D.changeLightRadius(
+                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                    light.index,
+                    light.radius
+                );
+            };
+            /**
+             * 改变环境光强度
+             */
+            SimpleLightEnvironment.prototype.changeAmbient = function(ambient) {
+                // 改变环境光强度
+                moon.Game.Drawing2D.changeAmbient(
+                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                    ambient
+                );
+            };
+            /**
+             * 改变环境光颜色
+             */
+            SimpleLightEnvironment.prototype.changeAmbientColor = function(color) {
+                // 改变环境光颜色
+                moon.Game.Drawing2D.changeAmbientColor(
+                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                    color
+                );
+            };
+            /**
+             * 移除灯光
+             */
+            SimpleLightEnvironment.prototype.removeLight = function(light) {
+                // 移除灯光
+                moon.Game.Drawing2D.removeLight(
+                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                    light.index
+                );
+                this.lights.splice(light.index, 1);
+                for (let i = light.index; i < this.lights.length; i++) {
+                    this.lights[i].index--; // 更新信息
+                }
+            };
+            return SimpleLightEnvironment;
+        }());
 
         return entity;
     }());
