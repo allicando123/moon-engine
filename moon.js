@@ -3182,7 +3182,7 @@ let Moon = (function() {
             function PictureBox(image, position, size) {
                 controls.Control.call(this, position, size);
                 this.canFocus = false; // 不可聚焦
-                this.image = image;
+                this.image = moon.Game.Drawing2D.createTexture(image);
                 this.position = position;
                 // 重写大小
                 this.size = size || new moon.Vector2(image.width, image.height);
@@ -3193,18 +3193,17 @@ let Moon = (function() {
              * 绘制图片盒
              */
             PictureBox.prototype.draw = function() {
-
                 if (this.noCamera) {
                     moon.Game.Camera.save();
                     moon.Game.Camera.matrix = moon.Drawing.Drawing3D.Matrix.mat4.constOrigin();
-                    let src = new moon.Rectangle(0, 0, this.size.x, this.size.y);
-                    let dest = new moon.Rectangle(this.position.x, this.position.y, this.position.x + this.size.x, this.position.y + this.size.y);
+                    let src = new moon.Rectangle(0, 0, this.image.width, this.image.height);
+                    let dest = new moon.Rectangle(this.position.x, this.position.y, this.size.x, this.size.y);
                     moon.Game.Drawing2D.drawSprite(this.image, src, dest, null, this.depth);
                     moon.Game.Camera.restore();
                     return;
                 }
-                let src = new moon.Rectangle(0, 0, this.size.x, this.size.y);
-                let dest = new moon.Rectangle(this.position.x, this.position.y, this.position.x + this.size.x, this.position.y + this.size.y);
+                let src = new moon.Rectangle(0, 0, this.image.width, this.image.height);
+                let dest = new moon.Rectangle(this.position.x, this.position.y, this.size.x, this.size.y);
                 moon.Game.Drawing2D.drawSprite(this.image, src, dest, null, this.depth);
             };
             return PictureBox;
