@@ -1042,6 +1042,64 @@ let Moon = (function() {
                 return Texture;
             }());
 
+            // 着色器程序
+            drawing3D.ShaderProgram = (function() {
+                /**
+                 * 着色器程序
+                 */
+                function ShaderProgram(name, gl, vertexShader, fragmentShader) {
+                    this.name = name;
+                    this.gl = null;
+                    this.program = null;
+                    if (gl) {
+                        this.gl = gl;
+                        this.program = drawing3D.createProgram(gl, vertexShader, fragmentShader);
+                    }
+                    this.uniforms = {};
+                }
+                /**
+                 * 使用挡墙的着色器程序
+                 */
+                ShaderProgram.prototype.use = function() {
+                    this.gl.useProgram(this.program);
+                };
+                return ShaderProgram;
+            }());
+
+            // 着色器程序管理器
+            drawing3D.shaderProgramManager = (function() {
+                /**
+                 * 着色器程序
+                 */
+                function shaderProgramManager() {
+                    this.programs = {};
+                    this.currentProgram = null;
+                }
+                /**
+                 * 添加着色器
+                 */
+                shaderProgramManager.prototype.add = function(program) {
+                    if (JSON.stringify(this.programs) == '{}') {
+                        if (this.currentProgram == null)
+                            this.currentProgram = program; // 第一个着色器程序默认
+                    }
+                    this.programs[program.name] = program;
+                };
+                /**
+                 * 使用着色器
+                 */
+                shaderProgramManager.prototype.useProgram = function(name) {
+                    this.programs[name].use();
+                    this.currentProgram = this.programs[name];
+                };
+                shaderProgramManager.prototype.hasProgram = function(name) {
+                    if (this.programs[name])
+                        return true;
+                    return false;
+                };
+                return shaderProgramManager;
+            }());
+
             /**
              * 向量
              */
@@ -1350,30 +1408,6 @@ let Moon = (function() {
 
             // 2D绘图
             drawing3D.Drawing2D = (function() {
-                //2D使用的着色器程序
-                const VERTEX_SHADER = // 顶点着色器
-                    'attribute vec4 a_Position;' +
-                    'attribute vec2 a_TexCoord;' +
-                    'uniform mat4 u_Projection;' + // 坐标系转换矩阵
-                    'uniform mat4 u_View;' + // 摄像机矩阵
-                    'uniform mat4 u_Transform;' + // 变换矩阵
-                    'uniform mat4 u_TexTransform;' +
-                    'varying vec2 v_TexCoord;' +
-                    'void main() {' +
-                    'gl_Position = u_Projection * u_View * u_Transform * a_Position;' +
-                    'v_TexCoord = (u_TexTransform * vec4(a_TexCoord, 0, 1.0)).xy;' +
-                    '}';
-
-                const FRAGMENT_SHADER = // 片段着色器
-                    'precision mediump float;' +
-                    'uniform sampler2D u_Sampler;' +
-                    'uniform vec4 u_Color;' +
-                    'varying vec2 v_TexCoord;' +
-                    'void main() {' +
-                    'gl_FragColor =  u_Color * texture2D(u_Sampler, v_TexCoord);' + // 叠加颜色
-                    'if(gl_FragColor.a < 0.1) discard;' + // 显示透明度使用
-                    '}';
-
                 /**
                  * 着色器程序
                  */
@@ -1404,9 +1438,6 @@ let Moon = (function() {
                             'if(gl_FragColor.a < 0.1) discard;' + // 显示透明度使用
                             '}'
                     },
-                    /**
-                     * 简单灯光着色器
-                     */
                     SIMPLE_LIGHT: {
                         VERTEX_SHADER: // 顶点着色器
                             'attribute vec4 a_Position;' +
@@ -1416,10 +1447,70 @@ let Moon = (function() {
                             'uniform mat4 u_Transform;' + // 变换矩阵
                             'uniform mat4 u_TexTransform;' +
                             'varying vec2 v_TexCoord;' +
-                            'varying vec3 a_FragPosition;' +
+                            'varying vec3 v_FragPosition;' +
                             'void main() {' +
-                            'a_FragPosition = (u_Transform * a_Position).xyz;' +
-                            'gl_Position = u_Projection * u_View * u_Transform * a_Position;' +
+                            'vec4 transPosition = u_Transform * a_Position;' +
+                            'v_FragPosition = transPosition.xyz;' +
+                            'gl_Position = u_Projection * u_View * transPosition;' +
+                            'v_TexCoord = (u_TexTransform * vec4(a_TexCoord, 0, 1.0)).xy;' +
+                            '}',
+                        FRAGMENT_SHADER: // 片段着色器
+                            'precision mediump float;' +
+                            'const int MAX_LIGHT = 100;' + // 最多100个灯光
+                            'struct Light {' +
+                            'vec3 position;' + // 灯光位置
+                            'float radius;' + // 灯光边界
+                            'float innerRadius;' + // 灯光内边界
+                            'vec3 color;' +
+                            '};' + // 灯光
+                            'uniform Light lights[MAX_LIGHT];' + // 灯光数组
+                            'uniform int u_LightCount;' + // 灯光数量
+                            'uniform float u_Ambient;' + // 环境光强度
+                            'uniform vec3 u_AmbientColor;' + // 环境光颜色
+                            'uniform sampler2D u_Sampler;' +
+                            'uniform vec4 u_Color;' + // 叠加颜色
+                            'varying vec2 v_TexCoord;' +
+                            'varying vec3 v_FragPosition;' +
+                            'void main() {' +
+                            'vec4 result = vec4(0.0);' + // 计算的颜色结果
+                            'bool noLight = true;' + // 未照到光线
+                            'for(int i = 0; i < MAX_LIGHT; i++) {' + // 循环遍历每一个灯光
+                            'if (i >= u_LightCount) break;' + // 因为数组不支持变量，因此限制循环条件
+                            'float dist = distance(lights[i].position, v_FragPosition);' + // 计算距离
+                            'if (dist <= lights[i].radius) {' +
+                            'float epsilon = lights[i].innerRadius - lights[i].radius;' + // 计算内外圈差值
+                            'vec4 ori = vec4(1.0);' +
+                            'vec3 lcolor = lights[i].color;' +
+                            'if (epsilon != 0.0)' +
+                            'lcolor *= clamp((dist - lights[i].radius) / epsilon, 0.0, 1.0);' + // 计算灯光渐变
+                            'vec4 light = vec4(lcolor, 1.0);' +
+                            'result = (ori - ((ori - light) * (ori - result)));' + // 光线混合算法
+                            'noLight = false;' +
+                            '}' +
+                            '}' +
+                            'if (noLight) result = vec4((u_AmbientColor * u_Ambient), 1.0);' + // 如果没有被光照到
+                            'gl_FragColor = result * u_Color * texture2D(u_Sampler, v_TexCoord);' + // 叠加颜色
+                            'if (gl_FragColor.a < 0.1) discard;' + // 显示透明度使用
+                            '}'
+                    },
+                    /**
+                     * 暂时取消使用
+                     * 简单3D灯光着色器
+                     */
+                    SIMPLE_LIGHT3D: {
+                        VERTEX_SHADER: // 顶点着色器
+                            'attribute vec4 a_Position;' +
+                            'attribute vec2 a_TexCoord;' +
+                            'uniform mat4 u_Projection;' + // 坐标系转换矩阵
+                            'uniform mat4 u_View;' + // 摄像机矩阵
+                            'uniform mat4 u_Transform;' + // 变换矩阵
+                            'uniform mat4 u_TexTransform;' +
+                            'varying vec2 v_TexCoord;' +
+                            'varying vec3 v_FragPosition;' +
+                            'void main() {' +
+                            'vec4 transPosition = u_Transform * a_Position;' +
+                            'v_FragPosition = transPosition.xyz;' +
+                            'gl_Position = u_Projection * u_View * transPosition;' +
                             'v_TexCoord = (u_TexTransform * vec4(a_TexCoord, 0, 1.0)).xy;' +
                             '}',
                         FRAGMENT_SHADER: // 片段着色器
@@ -1438,16 +1529,15 @@ let Moon = (function() {
                             'uniform sampler2D u_Sampler;' +
                             'uniform vec4 u_Color;' + // 叠加颜色
                             'varying vec2 v_TexCoord;' +
-                            'varying vec3 a_FragPosition;' +
+                            'varying vec3 v_FragPosition;' +
                             'void main() {' +
                             'vec4 result = vec4(0.0);' + // 计算的颜色结果
                             'bool noLight = true;' + // 未照到光线
                             'for(int i = 0; i < MAX_LIGHT; i++) {' + // 循环遍历每一个灯光
                             'if (i >= u_LightCount) break;' + // 因为数组不支持变量，因此限制循环条件
-                            'vec3 lightDir = normalize(lights[i].position - a_FragPosition);' + // 计算片段指向光源的向量
+                            'vec3 lightDir = normalize(lights[i].position - v_FragPosition);' + // 计算片段指向光源的向量
                             'float theta = dot(lightDir, normalize(-lights[i].direction));' + // 计算差值
                             'if (theta > lights[i].cutOff) {' +
-                            // 'result *= vec4(lights[i].color, 1.0);' + // 受到灯光的影响
                             'vec4 ori = vec4(1.0);' +
                             'vec4 light = vec4(lights[i].color, 1.0);' +
                             'result = (ori - ((ori - light) * (ori - result)));' + // 光线混合算法
@@ -1460,13 +1550,6 @@ let Moon = (function() {
                             '}'
                     }
                 }
-
-                /**
-                 * 着色器程序
-                 */
-                let PROGRAM = {};
-
-                let shaderUniform = {}; // 保存着色器中不变对象
 
                 // 绘制图片的顶点
                 // 图片占整个绘制区域的大小
@@ -1491,9 +1574,6 @@ let Moon = (function() {
                     this.width = 1; // 全局绘图大小
                     this.imageColor = new Float32Array([1.0, 1.0, 1.0, 1.0]); // 默认叠加色
 
-                    // 当前的不变对象
-                    this.uniform = null;
-
                     this.gl.clearColor(255, 255, 255, 255); // 设置清屏颜色
 
                     // 调整绘制小于等于缓冲区大小
@@ -1508,8 +1588,11 @@ let Moon = (function() {
                     // 清屏选项，默认只清理颜色
                     this.clearOption = this.gl.COLOR_BUFFER_BIT;
 
-                    // 切换着色器程序，默认简单着色器
-                    this.changeProgram(Drawing2D.shaderProgram.simple);
+                    this.shaderProgramManager = new drawing3D.shaderProgramManager();
+
+                    // 默认创建简单着色器
+                    this.changeProgram(Drawing2D.ShaderProgram.type.simple);
+
 
                     // TEMP ====================================
                     // 绑定缓冲
@@ -1519,13 +1602,167 @@ let Moon = (function() {
                 }
                 Drawing2D.prototype.constructor = Drawing2D; // 构造函数
                 // 静态函数=============================
-                /**
-                 * 着色器程序
-                 */
-                Drawing2D.shaderProgram = {
-                    simple: 0,
-                    simpleLight: 1,
-                };
+
+                Drawing2D.ShaderProgram = (function() {
+                    let shaderProgram = {};
+                    /**
+                     * 着色器程序类型
+                     */
+                    shaderProgram.type = {
+                        simple: 'simple',
+                        simpleLight: 'simpleLight'
+                    }
+
+                    // 简单着色器程序
+                    shaderProgram.Simple = (function() {
+                        /**
+                         * 简单着色器
+                         */
+                        function Simple(name, gl, vertexShader, fragmentShader) {
+                            drawing3D.ShaderProgram.call(this, name, gl, vertexShader, fragmentShader);
+                            if (!this.gl)
+                                return;
+                            // 获取不变对象
+                            this.uniforms = {
+                                u_Projection: this.gl.getUniformLocation(this.program, 'u_Projection'),
+                                u_View: this.gl.getUniformLocation(this.program, 'u_View'),
+                                u_Transform: this.gl.getUniformLocation(this.program, 'u_Transform'),
+                                u_TexTransform: this.gl.getUniformLocation(this.program, 'u_TexTransform'),
+                                u_Color: this.gl.getUniformLocation(this.program, 'u_Color')
+                            };
+                        }
+                        Simple.prototype = new drawing3D.ShaderProgram();
+                        Simple.prototype.constructor = Simple;
+                        /**
+                         * 设置坐标系矩阵
+                         */
+                        Simple.prototype.setProjection = function(projection) {
+                            this.gl.uniformMatrix4fv(this.uniforms.u_Projection, false, projection);
+                        };
+                        /**
+                         * 设置摄像机矩阵
+                         */
+                        Simple.prototype.setView = function(view) {
+                            this.gl.uniformMatrix4fv(this.uniforms.u_View, false, view);
+                        };
+                        /**
+                         * 设置变换矩阵
+                         */
+                        Simple.prototype.setTransform = function(transform) {
+                            this.gl.uniformMatrix4fv(this.uniforms.u_Transform, false, transform);
+                        };
+                        /**
+                         * 设置贴图矩阵
+                         */
+                        Simple.prototype.setTexTransform = function(transform) {
+                            this.gl.uniformMatrix4fv(this.uniforms.u_TexTransform, false, transform);
+                        };
+                        /**
+                         * 设置颜色矩阵
+                         */
+                        Simple.prototype.setColor = function(color) {
+                            this.gl.uniform4fv(this.uniforms.u_Color, color);
+                        };
+                        return Simple;
+                    }());
+
+                    shaderProgram.SimpleLight = (function() {
+                        /**
+                         * 简单灯光着色器
+                         */
+                        function SimpleLight(name, gl, vertexShader, fragmentShader) {
+                            shaderProgram.Simple.call(this, name, gl, vertexShader, fragmentShader);
+                            // 添加不变对象
+                            this.uniforms.u_Ambient = this.gl.getUniformLocation(this.program, 'u_Ambient'); // 环境光强度
+                            this.uniforms.u_AmbientColor = this.gl.getUniformLocation(this.program, 'u_AmbientColor'); // 环境光颜色
+                            this.uniforms.u_LightCount = this.gl.getUniformLocation(this.program, 'u_LightCount'); // 灯光数量
+                            // 存储灯光
+                            this.lights = [];
+                        }
+                        SimpleLight.prototype = new shaderProgram.Simple();
+                        SimpleLight.prototype.constructor = SimpleLight;
+                        /**
+                         * 初始化灯光环境
+                         */
+                        SimpleLight.prototype.init = function() {
+                            // 默认环境光强度为1，颜色为白色
+                            this.setAmbient(1);
+                            this.setAmbientColor(new Float32Array([1.0, 1.0, 1.0]));
+                        };
+                        /**
+                         * 设置环境光强度
+                         */
+                        SimpleLight.prototype.setAmbient = function(ambient) {
+                            this.gl.uniform1f(this.uniforms.u_Ambient, ambient);
+                        };
+                        /**
+                         * 设置环境光颜色
+                         */
+                        SimpleLight.prototype.setAmbientColor = function(color) {
+                            this.gl.uniform3fv(this.uniforms.u_AmbientColor, color);
+                        };
+                        /**
+                         * 设置环境光数量
+                         */
+                        SimpleLight.prototype.setLightCount = function(count) {
+                            this.gl.uniform1i(this.uniforms.u_LightCount, count);
+                        };
+                        SimpleLight.prototype.addLight = function(position, radius, innerRadius, color) {
+                            let i = this.lights.length;
+                            let light = {
+                                color: this.gl.getUniformLocation(this.program, 'lights[' + i + '].color'),
+                                position: this.gl.getUniformLocation(this.program, 'lights[' + i + '].position'),
+                                radius: this.gl.getUniformLocation(this.program, 'lights[' + i + '].radius'),
+                                innerRadius: this.gl.getUniformLocation(this.program, 'lights[' + i + '].innerRadius')
+                            };
+
+                            this.setLightCount(i + 1); // 添加灯光
+
+                            // 设置当前灯光属性
+                            this.gl.uniform3fv(light.position, new Float32Array([position.x, position.y, 1]));
+                            this.gl.uniform1f(light.radius, radius);
+                            this.gl.uniform1f(light.innerRadius, innerRadius || 0);
+                            this.gl.uniform3fv(light.color, color || new Float32Array([1.0, 1.0, 1.0]));
+
+                            this.lights.push(light); // 添加灯光
+                            return i;
+                        };
+                        /**
+                         * 弹出最后一个灯光
+                         */
+                        SimpleLight.prototype.popLight = function() {
+                            return this.lights.pop();
+                        };
+                        /**
+                         * 改变灯光位置
+                         */
+                        SimpleLight.prototype.changeLightPosition = function(index, position) {
+                            this.gl.uniform3fv(this.lights[index].position, new Float32Array([position.x, position.y, 1]));
+                        };
+                        /**
+                         * 改变灯光半径
+                         */
+                        SimpleLight.prototype.changeLightRadius = function(index, radius) {
+                            this.gl.uniform1f(this.lights[index].radius, radius);
+                        };
+                        /**
+                         * 改变灯光内半径
+                         */
+                        SimpleLight.prototype.changeLightInnerRadius = function(index, radius) {
+                            this.gl.uniform1f(this.lights[index].innerRadius, radius);
+                        };
+                        /**
+                         * 改变灯光颜色
+                         */
+                        SimpleLight.prototype.changeLightColor = function(index, color) {
+                            this.gl.uniform3fv(this.lights[index].color, color);
+                        };
+                        return SimpleLight;
+                    }());
+                    return shaderProgram;
+                }());
+
+
                 // ====================================
                 /**
                  * 设置清屏颜色
@@ -1558,200 +1795,35 @@ let Moon = (function() {
                 /**
                  * 切换着色器程序
                  */
-                Drawing2D.prototype.changeProgram = function(program) {
-                    switch (program) {
-                        case Drawing2D.shaderProgram.simple:
-                            if (!PROGRAM.SIMPLE) { // 如果着色器未编译
-                                PROGRAM.SIMPLE = drawing3D.createProgram(this.gl, SHADER.SIMPLE.VERTEX_SHADER,
-                                    SHADER.SIMPLE.FRAGMENT_SHADER);
-
-                                this.program = PROGRAM.SIMPLE;
-                                this.gl.useProgram(this.program);
-
-                                // 获取不变对象
-                                let u_Projection = this.gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Projection');
-                                let u_View = this.gl.getUniformLocation(PROGRAM.SIMPLE, 'u_View');
-                                let u_Transform = this.gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Transform');
-                                let u_TexTransform = this.gl.getUniformLocation(PROGRAM.SIMPLE, 'u_TexTransform');
-                                let u_Color = this.gl.getUniformLocation(PROGRAM.SIMPLE, 'u_Color');
-
-
-                                // 放入不变对象
-                                shaderUniform.simple = {
-                                    u_Projection: u_Projection,
-                                    u_View: u_View,
-                                    u_Transform: u_Transform,
-                                    u_TexTransform: u_TexTransform,
-                                    u_Color: u_Color
-                                };
-                            }
-                            this.program = PROGRAM.SIMPLE;
-                            this.uniform = shaderUniform.simple;
-                            this.gl.useProgram(this.program);
-                            break;
-                        case Drawing2D.shaderProgram.simpleLight:
-                            if (!PROGRAM.SIMPLE_LIGHT) {
-                                PROGRAM.SIMPLE_LIGHT = drawing3D.createProgram(this.gl, SHADER.SIMPLE_LIGHT.VERTEX_SHADER,
-                                    SHADER.SIMPLE_LIGHT.FRAGMENT_SHADER);
-
-                                this.program = PROGRAM.SIMPLE_LIGHT;
-                                this.gl.useProgram(this.program);
-
-                                // 获取不变对象
-                                let u_Projection = this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'u_Projection');
-                                let u_View = this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'u_View');
-                                let u_Transform = this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'u_Transform');
-                                let u_TexTransform = this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'u_TexTransform');
-                                let u_Color = this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'u_Color');
-                                let u_Ambient = this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'u_Ambient'); // 环境光强度
-                                let u_AmbientColor = this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'u_AmbientColor'); // 环境光颜色
-                                let u_LightCount = this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'u_LightCount'); // 灯光数量
-
-                                // 设置灯光
-                                // 设置环境光强度
-                                this.gl.uniform1f(u_Ambient, 1);
-                                // 设置环境光颜色
-                                this.gl.uniform3fv(u_AmbientColor, new Float32Array([1.0, 1.0, 1.0]));
-
-
-                                // 简单灯光
-                                shaderUniform.simpleLight = {
-                                    u_Projection: u_Projection,
-                                    u_View: u_View,
-                                    u_Transform: u_Transform,
-                                    u_TexTransform: u_TexTransform,
-                                    u_Color: u_Color,
-                                    u_Ambient: u_Ambient,
-                                    u_AmbientColor: u_AmbientColor,
-                                    u_LightCount: u_LightCount,
-                                    lights: { // 灯光
-                                        count: 0,
-                                        lights: []
-                                    }
-                                };
-                            }
-                            this.program = PROGRAM.SIMPLE_LIGHT;
-                            this.uniform = shaderUniform.simpleLight;
-                            this.gl.useProgram(this.program);
-                            break;
+                Drawing2D.prototype.changeProgram = function(name) {
+                    let program = this.shaderProgramManager.hasProgram(name);
+                    if (!program) {
+                        let pro;
+                        switch (name) {
+                            case Drawing2D.ShaderProgram.type.simple:
+                                pro = new Drawing2D.ShaderProgram.Simple(
+                                    name,
+                                    this.gl,
+                                    SHADER.SIMPLE.VERTEX_SHADER,
+                                    SHADER.SIMPLE.FRAGMENT_SHADER
+                                );
+                                this.shaderProgramManager.add(pro);
+                                break;
+                            case Drawing2D.ShaderProgram.type.simpleLight:
+                                pro = new Drawing2D.ShaderProgram.SimpleLight(
+                                    name,
+                                    this.gl,
+                                    SHADER.SIMPLE_LIGHT.VERTEX_SHADER,
+                                    SHADER.SIMPLE_LIGHT.FRAGMENT_SHADER
+                                );
+                                this.shaderProgramManager.add(pro);
+                                break;
+                        }
                     }
-                    // 设置转换坐标系矩阵
-                    this.gl.uniformMatrix4fv(this.uniform.u_Projection, false, this.projection);
+                    this.shaderProgramManager.useProgram(name);
+                    this.shaderProgramManager.currentProgram.setProjection(this.projection);
                 };
-                /**
-                 * 为着色器添加光线
-                 */
-                Drawing2D.prototype.addLight = function(program, position, radius, color) {
-                    switch (program) {
-                        case Drawing2D.shaderProgram.simpleLight: // 简单灯光
-                            let i = shaderUniform.simpleLight.lights.count;
-                            let light = {
-                                color: this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'lights[' + i + '].color'),
-                                position: this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'lights[' + i + '].position'),
-                                direction: this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'lights[' + i + '].direction'),
-                                cutOff: this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'lights[' + i + '].cutOff'),
-                                value: {
-                                    color: color || new Float32Array([1.0, 1.0, 1.0]),
-                                    position: new Float32Array([position.x, position.y, radius || 1000]) || new Float32Array([0, 0, radius || 1000]),
-                                } // 保存数据，用于数据恢复
-                            }
 
-                            // 设置光线值
-                            this.gl.uniform3fv(light.color, light.value.color);
-                            this.gl.uniform3fv(light.position, light.value.position);
-                            this.gl.uniform3fv(light.direction, new Float32Array([0, 0, -1]));
-                            this.gl.uniform1f(light.cutOff, Math.cos(moon.Utils.radianToDegree(12.5)));
-
-                            shaderUniform.simpleLight.lights.lights[i] = light; // 存储进入光线之中
-
-                            shaderUniform.simpleLight.lights.count++;
-
-                            // 设置灯光数量
-                            this.gl.uniform1i(shaderUniform.simpleLight.u_LightCount, shaderUniform.simpleLight.lights.count);
-                            return i;
-                            break;
-                    }
-                };
-                /**
-                 * 移除灯光
-                 */
-                Drawing2D.prototype.removeLight = function(program, index) {
-                    switch (program) {
-                        case Drawing2D.shaderProgram.simpleLight: // 简单灯光
-                            shaderUniform.simpleLight.lights.count--;
-                            shaderUniform.simpleLight.lights.lights.splice(index, 1); // 移除灯光   
-
-                            // 数组往前偏移
-                            for (let i = index; i < shaderUniform.simpleLight.lights.count; i++) { // 重设灯光值
-                                let light = shaderUniform.simpleLight.lights.lights[i];
-                                light.color = this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'lights[' + i + '].color');
-                                light.position = this.gl.getUniformLocation(PROGRAM.SIMPLE_LIGHT, 'lights[' + i + '].position'); // 重新获取值
-
-                                // 设置光线值
-                                this.gl.uniform3fv(light.color, light.value.color);
-                                this.gl.uniform3fv(light.position, light.value.position);
-                            }
-                            // 设置灯光数量
-                            this.gl.uniform1i(shaderUniform.simpleLight.u_LightCount, shaderUniform.simpleLight.lights.count);
-                            break;
-                    }
-                };
-                /**
-                 * 设置环境光强度，0~1
-                 */
-                Drawing2D.prototype.changeAmbient = function(program, ambient) {
-                    switch (program) {
-                        case Drawing2D.shaderProgram.simpleLight: // 简单灯光
-                            this.gl.uniform1f(shaderUniform.simpleLight.u_Ambient, ambient);
-                            break;
-                    }
-                };
-                /**
-                 * 改变环境光颜色
-                 */
-                Drawing2D.prototype.changeAmbientColor = function(program, color) {
-                    switch (program) {
-                        case Drawing2D.shaderProgram.simpleLight: // 简单灯光
-                            this.gl.uniform3fv(shaderUniform.simpleLight.u_AmbientColor, color);
-                            break;
-                    }
-                };
-                /**
-                 * 改变着色器程序灯光颜色
-                 */
-                Drawing2D.prototype.changeLightColor = function(program, index, color) {
-                    switch (program) {
-                        case Drawing2D.shaderProgram.simpleLight: // 简单灯光
-                            this.gl.uniform3fv(shaderUniform.simpleLight.lights.lights[index].color, color);
-                            shaderUniform.simpleLight.lights.lights[index].value.color = color;
-                            break;
-                    }
-                };
-                /**
-                 * 改变着色器灯光位置
-                 */
-                Drawing2D.prototype.changeLightPosition = function(program, index, position) {
-                    switch (program) {
-                        case Drawing2D.shaderProgram.simpleLight: // 简单灯光
-                            shaderUniform.simpleLight.lights.lights[index].value.position[0] = position.x;
-                            shaderUniform.simpleLight.lights.lights[index].value.position[1] = position.y;
-                            this.gl.uniform3fv(shaderUniform.simpleLight.lights.lights[index].position,
-                                shaderUniform.simpleLight.lights.lights[index].value.position);
-                            break;
-                    }
-                };
-                /**
-                 * 改变灯光颜色边界大小
-                 */
-                Drawing2D.prototype.changeLightRadius = function(program, index, radius) {
-                    switch (program) {
-                        case Drawing2D.shaderProgram.simpleLight: // 简单灯光
-                            shaderUniform.simpleLight.lights.lights[index].value.position[2] = radius;
-                            this.gl.uniform3fv(shaderUniform.simpleLight.lights.lights[index].position, shaderUniform.simpleLight.lights.lights[index].value.position);
-
-                            break;
-                    }
-                };
                 /**
                  * 创建贴图，为绘制的图片
                  */
@@ -1766,17 +1838,17 @@ let Moon = (function() {
                     gl.bufferData(gl.ARRAY_BUFFER, IMAGE_VERTICES, gl.STATIC_DRAW); // 填写缓冲区,静态绘制
 
                     // 传输着色器程序内容
-                    let a_Position = gl.getAttribLocation(this.program, 'a_Position');
+                    let a_Position = gl.getAttribLocation(this.shaderProgramManager.currentProgram.program, 'a_Position');
                     gl.vertexAttribPointer(a_Position, 2, gl.FLOAT, false, FSIZE * 4, 0); // 将前两位坐标填入
                     gl.enableVertexAttribArray(a_Position);
 
-                    let a_TexCoord = gl.getAttribLocation(this.program, 'a_TexCoord'); // 贴图坐标
+                    let a_TexCoord = gl.getAttribLocation(this.shaderProgramManager.currentProgram.program, 'a_TexCoord'); // 贴图坐标
                     gl.vertexAttribPointer(a_TexCoord, 2, gl.FLOAT, false, FSIZE * 4, FSIZE * 2); // 将后两位填入
                     gl.enableVertexAttribArray(a_TexCoord);
 
                     // 创建贴图
                     let tex = gl.createTexture();
-                    let u_Sampler = gl.getUniformLocation(this.program, 'u_Sample'); // 获取样本值
+                    let u_Sampler = gl.getUniformLocation(this.shaderProgramManager.currentProgram.program, 'u_Sample'); // 获取样本值
 
 
                     // 贴图类
@@ -1825,7 +1897,8 @@ let Moon = (function() {
 
                         // 设置视角矩阵
                         // let u_View = gl.getUniformLocation(this.program, 'u_View');
-                        gl.uniformMatrix4fv(this.uniform.u_View, false, moon.Game.Camera.getMatrix());
+                        // gl.uniformMatrix4fv(this.uniform.u_View, false, moon.Game.Camera.getMatrix());
+                        this.shaderProgramManager.currentProgram.setView(moon.Game.Camera.getMatrix());
 
                         // 进行坐标变换
                         // 获取着色器变换值
@@ -1838,17 +1911,20 @@ let Moon = (function() {
                         mat4.scale(mt, dest.width, dest.height, 1);
 
                         // // 设置矩阵
-                        gl.uniformMatrix4fv(this.uniform.u_Transform, false, mt);
+                        // gl.uniformMatrix4fv(this.uniform.u_Transform, false, mt);
+                        this.shaderProgramManager.currentProgram.setTransform(mt);
 
                         // 贴图坐标变换
                         // let u_TexTransform = gl.getUniformLocation(this.program, 'u_TexTransform');
-                        gl.uniformMatrix4fv(this.uniform.u_TexTransform, false, mat4.constOrigin());
+                        // gl.uniformMatrix4fv(this.uniform.u_TexTransform, false, mat4.constOrigin());
+                        this.shaderProgramManager.currentProgram.setTexTransform(mat4.constOrigin());
 
                         // 设置叠加色
                         // let u_Color = gl.getUniformLocation(this.program, 'u_Color');
 
                         // 设置叠加色
-                        gl.uniform4fv(this.uniform.u_Color, color || this.imageColor);
+                        // gl.uniform4fv(this.uniform.u_Color, color || this.imageColor);
+                        this.shaderProgramManager.currentProgram.setColor(color || this.imageColor);
 
                         // 绘制三角形带
                         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -1875,7 +1951,8 @@ let Moon = (function() {
 
                     // 设置视角矩阵
                     // let u_View = gl.getUniformLocation(this.program, 'u_View');
-                    gl.uniformMatrix4fv(this.uniform.u_View, false, moon.Game.Camera.getMatrix());
+                    // gl.uniformMatrix4fv(this.uniform.u_View, false, moon.Game.Camera.getMatrix());
+                    this.shaderProgramManager.currentProgram.setView(moon.Game.Camera.getMatrix());
 
                     // 进行坐标变换
                     // 获取着色器变换值
@@ -1889,7 +1966,8 @@ let Moon = (function() {
                     mat4.scale(mt, dest.width, dest.height, 1);
 
                     // // 设置矩阵
-                    gl.uniformMatrix4fv(this.uniform.u_Transform, false, mt);
+                    // gl.uniformMatrix4fv(this.uniform.u_Transform, false, mt);
+                    this.shaderProgramManager.currentProgram.setTransform(mt);
 
                     // 贴图坐标变换
                     // let u_TexTransform = gl.getUniformLocation(this.program, 'u_TexTransform');
@@ -1900,13 +1978,15 @@ let Moon = (function() {
                     mat4.translate(tmt, src.x / texture.width, src.y / texture.height, 0);
                     //缩放贴图
                     mat4.scale(tmt, src.width / texture.width, src.height / texture.height, 1);
-                    gl.uniformMatrix4fv(this.uniform.u_TexTransform, false, tmt);
+                    // gl.uniformMatrix4fv(this.uniform.u_TexTransform, false, tmt);
+                    this.shaderProgramManager.currentProgram.setTexTransform(tmt);
 
                     // 设置叠加色
                     // let u_Color = gl.getUniformLocation(this.program, 'u_Color');
 
                     // 设置叠加色
-                    gl.uniform4fv(this.uniform.u_Color, color || this.imageColor);
+                    // gl.uniform4fv(this.uniform.u_Color, color || this.imageColor);
+                    this.shaderProgramManager.currentProgram.setColor(color || this.imageColor);
 
                     // 绘制三角形带
                     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -4136,10 +4216,11 @@ let Moon = (function() {
         entity.SimpleLightEnvironment = (function() {
             // 内部类
             // 灯光
-            function SimpleLight(position, radius, color) {
+            function SimpleLight(position, radius, innerRadius, color) {
                 this.index = 0;
                 this.position = position || moon.Vector2(0, 0);
-                this.radius = radius || 1000;
+                this.radius = radius || 100;
+                this.innerRadius = innerRadius || 0;
                 this.color = color || new Float32Array([1.0, 1.0, 1.0]);
             }
 
@@ -4153,11 +4234,14 @@ let Moon = (function() {
             SimpleLightEnvironment.enable = function(flag) {
                 if (flag) {
                     // 开启灯光灯光着色器
-                    Game.Drawing2D.changeProgram(moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight);
+                    moon.Game.Drawing2D.changeProgram(
+                        moon.Drawing.Drawing3D.Drawing2D.ShaderProgram.type.simpleLight
+                    );
+                    moon.Game.Drawing2D.shaderProgramManager.currentProgram.init();
                 } else {
                     // 启动默认着色器程序
-                    Game.Drawing2D.changeProgram(
-                        moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simple
+                    moon.Game.Drawing2D.changeProgram(
+                        moon.Drawing.Drawing3D.Drawing2D.ShaderProgram.type.simple
                     );
                 }
             };
@@ -4169,12 +4253,12 @@ let Moon = (function() {
              * @param {number} radius 灯光范围
              * @param {Float32Array} color 灯光颜色
              */
-            SimpleLightEnvironment.prototype.createLight = function(position, radius, color) {
-                let light = new SimpleLight(position, radius, color);
-                light.index = moon.Game.Drawing2D.addLight(
-                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+            SimpleLightEnvironment.prototype.createLight = function(position, radius, innerRadius, color) {
+                let light = new SimpleLight(position, radius, innerRadius, color);
+                light.index = moon.Game.Drawing2D.shaderProgramManager.currentProgram.addLight(
                     light.position,
                     light.radius,
+                    light.innerRadius,
                     light.color
                 ); // 创建灯光
                 this.lights.push(light);
@@ -4184,10 +4268,10 @@ let Moon = (function() {
              * 添加灯光
              */
             SimpleLightEnvironment.prototype.addLight = function(light) {
-                light.index = moon.Game.Drawing2D.addLight(
-                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                light.index = moon.Game.Drawing2D.shaderProgramManager.currentProgram.addLight(
                     light.position,
                     light.radius,
+                    light.innerRadius,
                     light.color
                 ); // 创建灯光
                 this.lights.push(light);
@@ -4197,8 +4281,7 @@ let Moon = (function() {
              */
             SimpleLightEnvironment.prototype.updateLightPosition = function(light) {
                 // 更新光线坐标
-                moon.Game.Drawing2D.changeLightPosition(
-                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                moon.Game.Drawing2D.shaderProgramManager.currentProgram.changeLightPosition(
                     light.index,
                     light.position
                 );
@@ -4208,8 +4291,7 @@ let Moon = (function() {
              */
             SimpleLightEnvironment.prototype.updateLightColor = function(light) {
                 // 更新光线坐标
-                moon.Game.Drawing2D.changeLightColor(
-                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                moon.Game.Drawing2D.shaderProgramManager.currentProgram.changeLightColor(
                     light.index,
                     light.color
                 );
@@ -4219,29 +4301,43 @@ let Moon = (function() {
              */
             SimpleLightEnvironment.prototype.updateLightRadius = function(light) {
                 // 更新光线范围
-                moon.Game.Drawing2D.changeLightRadius(
-                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                moon.Game.Drawing2D.shaderProgramManager.currentProgram.changeLightRadius(
                     light.index,
                     light.radius
                 );
             };
             /**
+             * 更新灯光内圈范围
+             */
+            SimpleLightEnvironment.prototype.UpdateLightInnerRadius = function(light) {
+                moon.Game.Drawing2D.shaderProgramManager.currentProgram.changeLightInnerRadius(
+                    light.index,
+                    light.innerRadius
+                );
+            };
+            /**
+             * 更新灯光所有内容
+             */
+            SimpleLightEnvironment.prototype.updateAll = function(light) {
+                this.updateLightPosition(light);
+                this.updateLightColor(light);
+                this.updateLightRadius(light);
+            };
+            /**
              * 改变环境光强度
              */
-            SimpleLightEnvironment.prototype.changeAmbient = function(ambient) {
+            SimpleLightEnvironment.prototype.setAmbient = function(ambient) {
                 // 改变环境光强度
-                moon.Game.Drawing2D.changeAmbient(
-                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                moon.Game.Drawing2D.shaderProgramManager.currentProgram.setAmbient(
                     ambient
                 );
             };
             /**
              * 改变环境光颜色
              */
-            SimpleLightEnvironment.prototype.changeAmbientColor = function(color) {
+            SimpleLightEnvironment.prototype.setAmbientColor = function(color) {
                 // 改变环境光颜色
-                moon.Game.Drawing2D.changeAmbientColor(
-                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
+                moon.Game.Drawing2D.shaderProgramManager.currentProgram.setAmbientColor(
                     color
                 );
             };
@@ -4249,14 +4345,14 @@ let Moon = (function() {
              * 移除灯光
              */
             SimpleLightEnvironment.prototype.removeLight = function(light) {
-                // 移除灯光
-                moon.Game.Drawing2D.removeLight(
-                    moon.Drawing.Drawing3D.Drawing2D.shaderProgram.simpleLight,
-                    light.index
-                );
+                let program = moon.Game.Drawing2D.shaderProgramManager.currentProgram;
+                program.setLightCount(program.lights.length - 1); // 减少灯光数
+                program.popLight(); // 弹出最上方的灯光
                 this.lights.splice(light.index, 1);
                 for (let i = light.index; i < this.lights.length; i++) {
                     this.lights[i].index--; // 更新信息
+                    // 更新灯光信息
+                    this.updateAll(this.lights[this.lights[i].index]);
                 }
             };
             return SimpleLightEnvironment;
