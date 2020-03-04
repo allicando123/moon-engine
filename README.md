@@ -103,7 +103,7 @@ pannel.update = function() {
 	Gamepad.update(); // 更新手柄信息
 
 	if(Gamepad.onKeyDown(Gamepad.PlayerIndex.player1, Gamepad.Keys.START)) {
-		// 当手柄玩家1按下Start键后
+		// 当手柄玩家 1 按下 Start 键后
 		// 调用事件
 	}
 };
@@ -112,11 +112,12 @@ pannel.update = function() {
 2020-2-24 加入手柄振动功能 `实验性的`
 > 只支持Chromium内核的浏览器
 ```javascript
-// 手柄玩家1手柄在延时1000毫秒后振动1000毫秒，振动幅度从0~1
+// 手柄玩家 1 手柄在延时 1000 毫秒后振动 1000 毫秒，振动幅度从 0~1
 Gamepad.shake(Gamepad.PlayerIndex.player1, 1000, 1000, 0, 1);
 ```
 
 2020-2-28 加入圆形灯光系统
+>2020-3-4 已废弃
 ```javascript
 let g = Moon.Game.Drawing2D; // 获取图形模块
 let shaderProgram = Moon.Drawing.Drawing3D.Drawing2D.shaderProgram; // 不同的着色器程序
@@ -147,7 +148,7 @@ g.removeLight(shanderProgram.simpleLight, 0);
 ```
 
 2020-2-28 圆形灯光系统环境
-> 将圆形灯光系统封装
+> 将圆形灯光系统封装  
 ```javascript
 let Entity = Moon.Entity;
 
@@ -179,6 +180,89 @@ environment.removeLight(light);
 
 // 将移除的灯光重新加入到环境之中
 environment.addLight(light);
+```
+> 2020-3-4 修改
+```javascript
+// 创建灯光从 3 个参数修改为 4 个参数
+// 灯光范围改为像素大小，为圆形灯光的半径
+// 第 2 个参数是灯光的外圈半径，第 3 个参数是灯光的内圈半径，内圈半径灯光强度不衰减，外圈半径灯光强度衰减
+// 创建一个圆心为 (0, 0) 半径为 100， 内圈半径为 20 ，颜色为白色的灯光
+let light = environment.createLight(new Moon.Vector(0,0), 100, 20, new Float32Array[1.0, 1.0, 1.0]);
+
+// 灯光可修改内圈半径
+light.innerRadius = 100;
+
+// 更新属性
+environment.updateLightInnerRadius(light);
+
+// 增加全部更新函数
+environment.updateAll(light);
+```
+
+2020-3-4 修改灯光着色器以及对相关API做出修改  
+> 相关修改在之前更新说明中做出了标注  
+> 增加着色器程序扩展能力  
+
+1. 简单灯光原生系统
+```javascript
+// 引擎加载后会创建自动创建着色器管理器
+let manager = Moon.Game.Drawing2D.shaderProgramManager;
+
+// 启动简单灯光着色器程序
+Moon.Game.Drawing2D.changeProgram(
+	Moon.Drawing.Drawing3D.Drawing2D.ShaderProgram.type.simpleLight
+);
+
+// 修改着色器程序的属性
+// 修改环境光强度
+manager.currentProgram.setAmbient(0.1);
+
+// 修改环境光颜色
+manager.currentProgram.setAmbientColor(new Float32Array([1.0, 1.0, 1.0]));
+
+// 添加灯光
+manager.currentProgram.addLight(new Moon.Vector(0,0), 100, 20, new Float32Array[1.0, 1.0, 1.0]);
+
+// 修改灯光参数
+manager.currentProgram.changeLightPosition(new Moon.Vector(100, 100));
+manager.currentProgram.changeLightColor(new Float32Array([1.0, 1.0, 1.0]));
+manager.currentProgram.changeLightRadius(100);
+manager.currentProgram.changeLightInnerRadius(80);
+
+// 弹出最后一个灯光
+manager.currentProgram.pop();
+```
+
+2. 着色器程序拓展
+```javascript
+// 假设拥有两个着色器程序字符串vertexShader, fragmentShader
+// 定义着色器程序类
+let TestProgram = (function() {
+	function TestProgram(name, gl, vs, fs) {
+		Moon.Drawing.Drawing3D.ShaderProgram.call(this, gl, vs, fs);
+		// 获取着色器全局参数对象
+		this.uniforms.ambient = this.gl.getUniformLocation(this.program, 'u_ambient');
+	}
+	// 继承
+	TestProgram.prototype = new Moon.Drawing.Drawing3D.ShaderProgram();
+	TestProgram.prototype.constructor = TestProgram;
+	TestProgram.prototype.setAmbient = function(ambient) {
+		// 设置参数对象值
+		this.gl.uniform1f(this.uniforms.ambient, ambient);
+	}
+	return TestProgram;
+}());
+
+// 创建着色器程序
+let gl = Moon.Game.Drawing2D.gl;
+let manager = Moon.Game.Drawing2D.shaderProgramManager;
+let program = new TestProgram('light', gl, vertexShader, fragmentShader);
+manager.add(program);
+
+// 启动着色器程序
+Moon.Game.Drawing2D.changeProgram('light');
+
+// 对着色器进行操作
 ```
 
 #### 联系我
