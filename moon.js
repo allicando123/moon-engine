@@ -2011,7 +2011,8 @@ let Moon = (function() {
 
                     // 设置视角矩阵
                     // let u_View = gl.getUniformLocation(this.program, 'u_View');
-                    gl.uniformMatrix4fv(this.uniform.u_View, false, moon.Game.Camera.getMatrix());
+                    // gl.uniformMatrix4fv(this.uniform.u_View, false, moon.Game.Camera.getMatrix());
+                    this.shaderProgramManager.currentProgram.setView(moon.Game.Camera.getMatrix());
 
                     // 进行坐标变换
                     // 获取着色器变换值
@@ -2040,17 +2041,20 @@ let Moon = (function() {
                     mat4.scale(mt, dest.width, dest.height, 1);
 
                     // // 设置矩阵
-                    gl.uniformMatrix4fv(this.uniform.u_Transform, false, mt);
+                    // gl.uniformMatrix4fv(this.uniform.u_Transform, false, mt);
+                    this.shaderProgramManager.currentProgram.setTransform(mt);
 
                     // 贴图坐标变换
                     // let u_TexTransform = gl.getUniformLocation(this.program, 'u_TexTransform');
-                    gl.uniformMatrix4fv(this.uniform.u_TexTransform, false, mat4.constOrigin());
+                    // gl.uniformMatrix4fv(this.uniform.u_TexTransform, false, mat4.constOrigin());
+                    this.shaderProgramManager.currentProgram.setTexTransform(mat4.constOrigin());
 
                     // 设置叠加色
                     // let u_Color = gl.getUniformLocation(this.program, 'u_Color');
 
                     // 设置叠加色
-                    gl.uniform4fv(this.uniform.u_Color, color || this.imageColor);
+                    // gl.uniform4fv(this.uniform.u_Color, color || this.imageColor);
+                    this.shaderProgramManager.currentProgram.setColor(color || this.imageColor);
 
                     // 绘制三角形带
                     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -2075,7 +2079,8 @@ let Moon = (function() {
 
                     // 设置视角矩阵
                     // let u_View = gl.getUniformLocation(this.program, 'u_View');
-                    gl.uniformMatrix4fv(this.uniform.u_View, false, moon.Game.Camera.getMatrix());
+                    // gl.uniformMatrix4fv(this.uniform.u_View, false, moon.Game.Camera.getMatrix());
+                    this.shaderProgramManager.currentProgram.setView(moon.Game.Camera.getMatrix());
 
                     // 进行坐标变换
                     // 获取着色器变换值
@@ -2103,7 +2108,8 @@ let Moon = (function() {
                     mat4.scale(mt, dest.width, dest.height, 1);
 
                     // // 设置矩阵
-                    gl.uniformMatrix4fv(this.uniform.u_Transform, false, mt);
+                    // gl.uniformMatrix4fv(this.uniform.u_Transform, false, mt);
+                    this.shaderProgramManager.currentProgram.setTransform(mt);
 
                     // 贴图坐标变换
                     // let u_TexTransform = gl.getUniformLocation(this.program, 'u_TexTransform');
@@ -2115,13 +2121,15 @@ let Moon = (function() {
                     //缩放贴图
                     mat4.scale(tmt, src.width / texture.width, src.height / texture.height, 1);
 
-                    gl.uniformMatrix4fv(this.uniform.u_TexTransform, false, tmt);
+                    // gl.uniformMatrix4fv(this.uniform.u_TexTransform, false, tmt);
+                    this.shaderProgramManager.currentProgram.setTexTransform(tmt);
 
                     // 设置叠加色
                     // let u_Color = gl.getUniformLocation(this.program, 'u_Color');
 
                     // 设置叠加色
-                    gl.uniform4fv(this.uniform.u_Color, color || this.imageColor);
+                    // gl.uniform4fv(this.uniform.u_Color, color || this.imageColor);
+                    this.shaderProgramManager.currentProgram.setColor(color || this.imageColor);
 
                     // 绘制三角形带
                     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -3935,6 +3943,8 @@ let Moon = (function() {
             }
             DrawableEntity.prototype = new moon.Physic.RegidBody();
             DrawableEntity.prototype.constructor = DrawableEntity;
+            DrawableEntity.prototype.update = function() {};
+            DrawableEntity.prototype.draw = function() {};
             return DrawableEntity;
         }());
 
