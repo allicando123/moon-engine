@@ -4018,6 +4018,8 @@ let Moon = (function() {
                 this.animationFrames = [];
                 this.countTime = 0;
                 this.frame = 0;
+                this.loop = false;
+                this.end = false;
             }
             /**
              * 添加动画帧
@@ -4050,15 +4052,26 @@ let Moon = (function() {
              * 更新动画帧
              */
             Animation.prototype.update = function() {
+                if (this.end)
+                    return;
                 this.countTime += moon.Game.GameTime.elapsedTime;
                 if (this.countTime < this.animationFrames[this.frame].duration)
                     return; // 控制播放时间
 
                 this.frame++;
-                if (this.frame >= this.animationFrames.length)
+                if (this.frame >= this.animationFrames.length) {
                     this.frame = 0;
+                    if (!this.loop)
+                        this.end = true;
+                    this.ended();
+                }
+
                 this.countTime = 0;
             };
+            /**
+             * 动画结束回调函数
+             */
+            Animation.prototype.ended = function() {};
             return Animation;
         }());
 
@@ -4083,12 +4096,15 @@ let Moon = (function() {
              */
             AnimationManager.prototype.setAnimation = function(name) {
                 this.currentAnimation = this.animations[name];
+                this.currentAnimation.frame = 0;
+                this.currentAnimation.end = false;
             };
             /**
              * 播放动画
              */
             AnimationManager.prototype.play = function() {
                 this.playing = true;
+                this.currentAnimation.end = false;
             };
             /**
              * 暂停播放
