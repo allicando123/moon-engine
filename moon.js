@@ -3219,14 +3219,9 @@ let Moon = (function() {
              * 绘制标签
              */
             Label.prototype.draw = function() {
-                if (this.noCamera) {
-                    moon.Game.Camera.save();
-                    moon.Game.Camera.matrix = moon.Drawing.Drawing3D.Matrix.mat4.constOrigin();
-                    this.font.draw(this.text, this.position.x, this.position.y, this.color, this.depth);
-                    moon.Game.Camera.restore();
-                    return;
-                }
+                moon.Game.Camera.withCamera(this.noCamera);
                 this.font.draw(this.text, this.position.x, this.position.y, this.color, this.depth);
+                if (this.noCamera) moon.Game.Camera.withCamera(false);
             }
             return Label;
         }());
@@ -3246,21 +3241,12 @@ let Moon = (function() {
              * 绘制标签
              */
             SelectedLabel.prototype.draw = function() {
-                if (this.noCamera) {
-                    moon.Game.Camera.save();
-                    moon.Game.Camera.matrix = moon.Drawing.Drawing3D.Matrix.mat4.constOrigin();
-                    if (this.hasFocus)
-                        this.font.draw(this.text, this.position.x, this.position.y, this.selectedColor, this.depth);
-                    else
-                        this.font.draw(this.text, this.position.x, this.position.y, this.color, this.depth);
-                    moon.Game.Camera.restore();
-                    return;
-                }
-
+                moon.Game.Camera.withCamera(this.noCamera);
                 if (this.hasFocus)
                     this.font.draw(this.text, this.position.x, this.position.y, this.selectedColor, this.depth);
                 else
                     this.font.draw(this.text, this.position.x, this.position.y, this.color, this.depth);
+                if (this.noCamera) moon.Game.Camera.withCamera(false);
             }
             return SelectedLabel;
         }());
@@ -3281,18 +3267,11 @@ let Moon = (function() {
              * 绘制图片盒
              */
             PictureBox.prototype.draw = function() {
-                if (this.noCamera) {
-                    moon.Game.Camera.save();
-                    moon.Game.Camera.matrix = moon.Drawing.Drawing3D.Matrix.mat4.constOrigin();
-                    let src = new moon.Rectangle(0, 0, this.image.width, this.image.height);
-                    let dest = new moon.Rectangle(this.position.x, this.position.y, this.size.x, this.size.y);
-                    moon.Game.Drawing2D.drawSprite(this.image, src, dest, null, this.depth);
-                    moon.Game.Camera.restore();
-                    return;
-                }
+                moon.Game.Camera.withCamera(this.noCamera);
                 let src = new moon.Rectangle(0, 0, this.image.width, this.image.height);
                 let dest = new moon.Rectangle(this.position.x, this.position.y, this.size.x, this.size.y);
                 moon.Game.Drawing2D.drawSprite(this.image, src, dest, null, this.depth);
+                if (this.noCamera) moon.Game.Camera.withCamera(false);
             };
             return PictureBox;
         }());
@@ -3968,19 +3947,7 @@ let Moon = (function() {
              * 重写绘制方法
              */
             Image.prototype.draw = function() {
-                if (this.noCamera) {
-                    moon.Game.Camera.save();
-                    moon.Game.Camera.matrix = moon.Drawing.Drawing3D.Matrix.mat4.constOrigin();
-                    let dest = new moon.Rectangle(
-                        this.position.x,
-                        this.position.y,
-                        this.size.x,
-                        this.size.y
-                    );
-                    moon.Game.Drawing2D.picture(this.image, dest, this.center, this.angle, this.filter, this.color, this.depth);
-                    moon.Game.Camera.restore();
-                    return;
-                }
+                moon.Game.Camera.withCamera(this.noCamera);
                 let dest = new moon.Rectangle(
                     this.position.x,
                     this.position.y,
@@ -3988,6 +3955,7 @@ let Moon = (function() {
                     this.size.y
                 );
                 moon.Game.Drawing2D.picture(this.image, dest, this.center, this.angle, this.filter, this.color, this.depth);
+                if (this.noCamera) moon.Game.Camera.withCamera(false);
             }
 
             return Image;
@@ -4018,8 +3986,8 @@ let Moon = (function() {
                 this.animationFrames = [];
                 this.countTime = 0;
                 this.frame = 0;
-                this.loop = false;
-                this.end = false;
+                this.loop = true;
+                this._stoped = false;
             }
             /**
              * 添加动画帧
@@ -4052,7 +4020,7 @@ let Moon = (function() {
              * 更新动画帧
              */
             Animation.prototype.update = function() {
-                if (this.end)
+                if (this._stoped)
                     return;
                 this.countTime += moon.Game.GameTime.elapsedTime;
                 if (this.countTime < this.animationFrames[this.frame].duration)
@@ -4062,8 +4030,8 @@ let Moon = (function() {
                 if (this.frame >= this.animationFrames.length) {
                     this.frame = 0;
                     if (!this.loop)
-                        this.end = true;
-                    this.ended();
+                        this._stoped = true;
+                    this.onEnd();
                 }
 
                 this.countTime = 0;
@@ -4071,7 +4039,7 @@ let Moon = (function() {
             /**
              * 动画结束回调函数
              */
-            Animation.prototype.ended = function() {};
+            Animation.prototype.onEnd = function() {};
             return Animation;
         }());
 
@@ -4162,29 +4130,7 @@ let Moon = (function() {
              * 绘制
              */
             Sprite.prototype.draw = function() {
-                if (this.noCamera) {
-                    moon.Game.Camera.save();
-                    moon.Game.Camera.matrix = moon.Drawing.Drawing3D.Matrix.mat4.constOrigin();
-                    let dest = new moon.Rectangle(
-                        this.position.x,
-                        this.position.y,
-                        this.size.x,
-                        this.size.y
-                    );
-
-                    moon.Game.Drawing2D.sprite(
-                        this.image,
-                        this.animationManager.currentAnimation.getFrameRect(),
-                        dest,
-                        this.center,
-                        this.angle,
-                        this.filter,
-                        this.color,
-                        this.depth
-                    );
-                    moon.Game.Camera.restore();
-                    return;
-                }
+                moon.Game.Camera.withCamera(this.noCamera);
                 let dest = new moon.Rectangle(
                     this.position.x,
                     this.position.y,
@@ -4201,6 +4147,7 @@ let Moon = (function() {
                     this.color,
                     this.depth
                 );
+                if (this.noCamera) moon.Game.Camera.withCamera(false);
             };
             Sprite.prototype
             return Sprite;
@@ -4685,6 +4632,14 @@ let Moon = (function() {
                     moon.Drawing.Drawing3D.Vector.vec3.plus(pos,
                         this.front),
                     this.up);
+
+                this._noCamera = false; // true代表下一次使用Camera时不进行变换
+            };
+            /**
+             * 下一次绘图是否包含摄像机变换
+             */
+            Camera.prototype.withCamera = function(flag) {
+                this._noCamera = flag;
             };
             Camera.prototype.update = function() {
                 this.lockCamera();
@@ -4701,8 +4656,6 @@ let Moon = (function() {
 
                 if (this.mode == camera.cameraMode.follow)
                     return;
-
-
             };
             /**
              * 将摄像机锁定在世界之中
@@ -4755,6 +4708,8 @@ let Moon = (function() {
              * 获取摄像头矩阵
              */
             Camera.prototype.getMatrix = function() {
+                if (this._noCamera)
+                    return moon.Drawing.Drawing3D.Matrix.mat4.constOrigin();
                 return this.matrix;
             };
             return Camera;
