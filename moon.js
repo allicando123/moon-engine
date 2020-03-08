@@ -154,6 +154,30 @@ let Moon = (function() {
             return (2 * near) / (far + near - z * (far - near));
         }
 
+        /**
+         * 将字符串颜色转化为float数组
+         */
+        utils.colorStrToArr = function(str) {
+            if (str[0] != '#')
+                throw '颜色错误';
+            let r = str.substring(1, 3);
+            let g = str.substring(3, 5);
+            let b = str.substring(5, 7);
+            if (str.length <= 7)
+                return new Float32Array([
+                    Math.floor(Number.parseInt(r, 16)),
+                    Math.floor(Number.parseInt(g, 16)),
+                    Math.floor(Number.parseInt(b, 16))
+                ]);
+            let a = str.substring(7, 9);
+            return new Float32Array([
+                Math.floor(Number.parseInt(r, 16)),
+                Math.floor(Number.parseInt(g, 16)),
+                Math.floor(Number.parseInt(b, 16)),
+                Math.floor(Number.parseInt(a, 16))
+            ]);
+        }
+
         return utils;
     }());
 
@@ -2513,36 +2537,52 @@ let Moon = (function() {
     moon.Group = (function() {
         let group = {};
 
+        group.UpdateGroup = (function() {
+            /**
+             * 更新组
+             */
+            function UpdateGroup() {
+                this.group = [];
+            }
+            /**
+             * 添加更新实体
+             */
+            UpdateGroup.prototype.add = function(body) {
+                if (body.update)
+                    this.group.push(body);
+            };
+            /**
+             * 移除实体
+             */
+            UpdateGroup.prototype.remove = function(body) {
+                let index = this.group.indexOf(body);
+                if (index != -1)
+                    this.group.splice(index, 1);
+            };
+            UpdateGroup.prototype.update = function() {
+                for (let i = 0; i < this.group.length; i++) {
+                    this.group[i].update();
+                }
+            };
+            return UpdateGroup;
+        }())
+
         // 可绘图的组
         group.DrawableGroup = (function() {
             /**
              * 可绘制的组
              */
             function DrawableGroup() {
-                this.group = [];
+                group.UpdateGroup.call(this);
             }
+            DrawableGroup.prototype = new group.UpdateGroup();
+            DrawableGroup.prototype.constructor = DrawableGroup;
             /**
              * 添加可绘制实体
              */
             DrawableGroup.prototype.add = function(body) {
                 if (body.draw && body.update)
                     this.group.push(body);
-            };
-            /**
-             * 移除实体
-             */
-            DrawableGroup.prototype.remove = function(body) {
-                let index = this.group.indexOf(body);
-                if (index != -1)
-                    this.group.splice(index, 1);
-            };
-            /**
-             * 更新
-             */
-            DrawableGroup.prototype.update = function() {
-                for (let i = 0; i < this.group.length; i++) {
-                    this.group[i].update();
-                }
             };
             /**
              * 绘制
@@ -2557,14 +2597,6 @@ let Moon = (function() {
 
         return group;
     }());
-
-    // /**
-    //  * 表示创建2D环境还是3D环境
-    //  */
-    // moon.GameSpace = {
-    //     _2D: 0,
-    //     _3D: 1
-    // }
 
     // 游戏对象
     moon.GameObject = (function() {
