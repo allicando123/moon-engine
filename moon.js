@@ -411,8 +411,10 @@ let Moon = (function() {
                 moon.Game.Resource.load(function() {
                     // 当资源加载好触发
                     pannel.loaded();
-                    self.pannels.push(pannel);
-                    self.show(pannel);
+                    moon.Sound.Audio.loadAudio(function() {
+                        self.pannels.push(pannel);
+                        self.show(pannel);
+                    });
                 });
             }
         }
@@ -2338,8 +2340,10 @@ let Moon = (function() {
          * 声音初始化
          */
         sound.init = function() {
-            sound.ctx = new AudioContext(); // 创建声音上下文
-            sound.panner = sound.ctx.createStereoPanner(); // 简单环境音控制器
+            if (!sound.ctx) {
+                sound.ctx = new AudioContext(); // 创建声音上下文
+                sound.panner = sound.ctx.createStereoPanner(); // 简单环境音控制器
+            }
         }
 
         // 用来播放音乐
@@ -2435,7 +2439,7 @@ let Moon = (function() {
             }
 
             // 等待加载的数量
-            let waitings = 0;
+            let waitings = [];
 
             /**
              * 添加声音到声音组中
@@ -2446,44 +2450,74 @@ let Moon = (function() {
              * @param {number} start 放在声音组的起始位置
              * @param {number} length 声音长度
              */
-            audio.loadAudio = function(group, name, bin, startInSource, start, length) {
-                waitings++; // 等待数量加一
-                sound.ctx.decodeAudioData(bin,
-                    // 如果加载成功
-                    function(buffer) {
-                        list[group][name] = {
-                            start: start,
-                            length: length,
-                            loop: false
-                        }; // 添加声音信息
+            audio.preCreateAudio = function(group, name, bin, startInSource, start, length) {
+                let audio = {
+                    group: group,
+                    name: name,
+                    bin: bin,
+                    startInSource: startInSource,
+                    start: start,
+                    length: length
+                }
+                waitings.push(audio);
+            }
 
-                        let index = Math.ceil(startInSource * sound.ctx.sampleRate);
-                        let len = Math.ceil(length * sound.ctx.sampleRate);
-                        let sIndex = Math.ceil(start * sound.ctx.sampleRate);
+            audio.loadAudio = function(callback) {
+                if (waitings.length == 0) {
+                    callback();
+                    return;
+                }
+                let count = 0;
 
-                        // 将声音段帧复制到声音组中
-                        list[group].buffer.getChannelData(0).set(buffer.getChannelData(0).slice(index, index + len), sIndex);
-                        list[group].buffer.getChannelData(1).set(buffer.getChannelData(1).slice(index, index + len), sIndex);
+                for (let i = 0; i < waitings.length; i++) {
+                    let wait = waitings[i];
+                    sound.ctx.decodeAudioData(wait.bin,
+                        // 如果加载成功
+                        function(buffer) {
+                            list[wait.group][wait.name] = {
+                                start: wait.start,
+                                length: wait.length,
+                                loop: false
+                            }; // 添加声音信息
 
-                        waitings--;
-                    },
-                    function() {
-                        waitings--;
-                        throw '声音 ' + name + ' 加载失败';
-                    });
+                            let index = Math.ceil(wait.startInSource * sound.ctx.sampleRate);
+                            let len = Math.ceil(wait.length * sound.ctx.sampleRate);
+                            let sIndex = Math.ceil(wait.start * sound.ctx.sampleRate);
+
+                            // 将声音段帧复制到声音组中
+                            list[wait.group].buffer.getChannelData(0).set(buffer.getChannelData(0).slice(index, index + len), sIndex);
+                            list[wait.group].buffer.getChannelData(1).set(buffer.getChannelData(1).slice(index, index + len), sIndex);
+
+                            count++;
+                            if (count == waitings.length) {
+                                waitings.splice(0, waitings.length);
+                                callback();
+                                return;
+                            }
+                        },
+                        function() {
+                            count++;
+                            if (count == waitings.length) {
+                                waitings.splice(0, waitings.length);
+                                callback();
+                                return;
+                            }
+                            throw '声音 ' + name + ' 加载失败';
+                        });
+                }
+
             }
 
             /**
              * 播放某组声音
              */
             audio.play = function(group, name) {
-                if (waitings != 0)
-                    return;
                 let source = sound.ctx.createBufferSource();
                 source.buffer = list[group].buffer;
                 source.connect(list[group].gain);
                 list[group].gain.connect(sound.ctx.destination);
                 let audio = list[group][name];
+                list[group][name].source = source;
 
                 // 播放声音
                 source.start(0, audio.start);
@@ -2502,17 +2536,14 @@ let Moon = (function() {
              * 停止声音
              */
             audio.stop = function(group, name) {
-                if (waitings != 0)
-                    return;
-                list[group][name].srouce.stop();
+                if (list[group][name].source)
+                    list[group][name].source.stop();
             }
 
             /**
              * 播放声音组
              */
             audio.playGroup = function(group, loop) {
-                if (waitings != 0)
-                    return;
                 let source = sound.ctx.createBufferSource();
                 source.buffer = list[group].buffer;
                 source.loop = loop || false;
@@ -3338,7 +3369,7 @@ let Moon = (function() {
              * 将控件放在控件管理器中
              */
             ControlManager.prototype.addControl = function(control) {
-                if (!control instanceof controls.Control)
+                if (!(control instanceof controls.Control))
                     return;
                 if (this.controls.indexOf(control) == -1)
                     this.controls.push(control);
@@ -3509,8 +3540,8 @@ let Moon = (function() {
 
             // 设置鼠标坐标
             function setPosition(event) {
-                mouse.position.x = event.x - moon.Game.canvas.offsetLeft;
-                mouse.position.y = event.y - moon.Game.canvas.offsetTop;
+                mouse.position.x = event.offsetX;
+                mouse.position.y = event.offsetY;
             }
 
             // 添加监听
