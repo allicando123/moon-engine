@@ -165,16 +165,17 @@ let Moon = (function() {
             let b = str.substring(5, 7);
             if (str.length <= 7)
                 return new Float32Array([
-                    Math.floor(Number.parseInt(r, 16)),
-                    Math.floor(Number.parseInt(g, 16)),
-                    Math.floor(Number.parseInt(b, 16))
+                    Math.floor(Number.parseInt(r, 16) / 255),
+                    Math.floor(Number.parseInt(g, 16) / 255),
+                    Math.floor(Number.parseInt(b, 16) / 255),
+                    1
                 ]);
             let a = str.substring(7, 9);
             return new Float32Array([
-                Math.floor(Number.parseInt(r, 16)),
-                Math.floor(Number.parseInt(g, 16)),
-                Math.floor(Number.parseInt(b, 16)),
-                Math.floor(Number.parseInt(a, 16))
+                Math.floor(Number.parseInt(r, 16) / 255),
+                Math.floor(Number.parseInt(g, 16) / 255),
+                Math.floor(Number.parseInt(b, 16) / 255),
+                Math.floor(Number.parseInt(a, 16) / 255)
             ]);
         }
 
@@ -2543,21 +2544,36 @@ let Moon = (function() {
              */
             function UpdateGroup() {
                 this.group = [];
+                this.groupIndex = {}; // 保存组名和组值键值对
+                // 这样分开写的原因是貌似遍历JSON文件效率比较低
             }
             /**
              * 添加更新实体
              */
-            UpdateGroup.prototype.add = function(body) {
-                if (body.update)
-                    this.group.push(body);
+            UpdateGroup.prototype.add = function(name, body) {
+                if (body.update) {
+                    this.groupIndex[name] = this.group.push(body) - 1;
+                }
             };
             /**
-             * 移除实体
+             * 移除实体，移除时效率比较慢
              */
-            UpdateGroup.prototype.remove = function(body) {
-                let index = this.group.indexOf(body);
-                if (index != -1)
+            UpdateGroup.prototype.remove = function(name) {
+                let index = this.groupIndex[name];
+                if (index != undefined && index >= 0) {
                     this.group.splice(index, 1);
+                    delete this.groupIndex[name];
+                    for (let k in this.groupIndex) { // 重新定位index
+                        if (this.groupIndex[k] > index)
+                            this.groupIndex[k]--;
+                    }
+                }
+            };
+            /**
+             * 获取组元素
+             */
+            UpdateGroup.prototype.get = function(name) {
+                return this.group[this.groupIndex[name]];
             };
             UpdateGroup.prototype.update = function() {
                 for (let i = 0; i < this.group.length; i++) {
@@ -2580,9 +2596,10 @@ let Moon = (function() {
             /**
              * 添加可绘制实体
              */
-            DrawableGroup.prototype.add = function(body) {
-                if (body.draw && body.update)
-                    this.group.push(body);
+            DrawableGroup.prototype.add = function(name, body) {
+                if (body.update && body.draw) {
+                    this.groupIndex[name] = this.group.push(body) - 1;
+                }
             };
             /**
              * 绘制
