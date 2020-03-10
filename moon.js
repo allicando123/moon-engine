@@ -239,7 +239,7 @@ let Moon = (function() {
 
             // 如果时声音和图片，需要转化成src，调用onload
             if (type == resource.type.image) {
-                if (createImageBitmap) { // 检测是否支持该函数，createImageBitmap效率高
+                if (window.createImageBitmap) { // 检测是否支持该函数，createImageBitmap效率高
                     createImageBitmap(r).then(function(img) {
                         callback(img);
                         return;
@@ -2294,7 +2294,7 @@ let Moon = (function() {
                     }
                 }
 
-                maxWidth = Math.ceil(maxWidth); // 设置最大大小
+                maxWidth = Math.floor((maxWidth > size ? maxWidth : size)); // 设置最大大小
                 descent = Math.ceil(descent);
 
                 // 两像素偏移
@@ -2338,8 +2338,8 @@ let Moon = (function() {
 
                     i++;
 
-
-                    ctx.fillText(r, x * maxWidth, y * maxWidth + descent);
+                    // 往下平移1像素
+                    ctx.fillText(r, x * maxWidth + 1, y * maxWidth + descent - 1);
 
                     // ctx.rect(x * maxWidth, y * maxWidth, maxWidth, maxWidth);
                     // ctx.stroke();
@@ -2349,8 +2349,10 @@ let Moon = (function() {
                     result.text[r].y = y;
                 }
 
-                let ft = new spriteFont.Font(Moon.Game.Drawing2D.createTexture(canvas), result);
-
+                // 使用data加载，也可以使用canvas加载
+                let ft = new spriteFont.Font(
+                    Moon.Game.Drawing2D.createTexture(ctx.getImageData(0, 0, canvas.width, canvas.height)),
+                    result);
                 return ft;
             }
             return spriteFont;
