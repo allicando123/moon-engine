@@ -239,12 +239,19 @@ let Moon = (function() {
 
             // 如果时声音和图片，需要转化成src，调用onload
             if (type == resource.type.image) {
-                result = new Image();
-                result.src = window.URL.createObjectURL(r);
-                // 当资源加载好
-                result.onload = function() {
-                    callback(this);
-                    return;
+                if (createImageBitmap) { // 检测是否支持该函数，createImageBitmap效率高
+                    createImageBitmap(r).then(function(img) {
+                        callback(img);
+                        return;
+                    });
+                } else {
+                    result = new Image();
+                    result.src = window.URL.createObjectURL(r);
+                    // 当资源加载好
+                    result.onload = function() {
+                        callback(this);
+                        return;
+                    }
                 }
             } else if (type == resource.type.sound) {
                 result = new Audio();
@@ -2250,12 +2257,14 @@ let Moon = (function() {
 
                 ctx.font = size + 'px ' + font; // 设置字体
                 ctx.textAlign = 'left';
-                ctx.textBaseline = 'bottom'; // 设置文字位置
+                ctx.textBaseline = 'top'; // 设置文字位置
 
                 let measureResult; // 测量结果值
 
                 let maxWidth = 0; // 最大字体大小
                 let length = 0; // 不重复的文字数目
+
+                let descent = 0; // 文字的偏移
 
                 // 第一次循环，找到最大的一个字符作为基本字符大小
                 // 并且能够计算出画布的大小
@@ -2270,15 +2279,34 @@ let Moon = (function() {
 
                     measureResult = ctx.measureText(text[i]);
 
+
                     result.text[text[i]] = {
                         width: Math.ceil(measureResult.width)
                     }; // 将文字放入信息中
 
                     if (maxWidth < measureResult.width)
                         maxWidth = measureResult.width;
+
+                    if (measureResult.actualBoundingBoxDescent) { // 查看是否有值
+                        let des = measureResult.actualBoundingBoxDescent;
+                        if (descent < des)
+                            descent = des;
+                    }
                 }
 
-                maxWidth = Math.ceil(maxWidth);
+                maxWidth = Math.ceil(maxWidth); // 设置最大大小
+                descent = Math.ceil(descent);
+
+                // 两像素偏移
+                if (descent > maxWidth) {
+                    let max = descent;
+                    descent = descent - maxWidth + 1;
+                    maxWidth = max + 1;
+                } else {
+                    descent = 2;
+                    maxWidth += 2;
+                }
+
 
                 // 设置文字大小
                 result.width = maxWidth;
@@ -2294,13 +2322,12 @@ let Moon = (function() {
                 // 重新设置字体信息
                 ctx.font = size + 'px ' + font; // 设置字体
                 ctx.textAlign = 'left';
-                ctx.textBaseline = 'bottom'; // 设置文字位置
+                ctx.textBaseline = 'top'; // 设置文字位置
 
                 // 绘制的颜色默认为白色
                 ctx.fillStyle = color || '#ffffff';
 
-                // 文字的偏移
-                let descent = 0;
+
 
                 let x, y, i = 0;
                 // 绘制文字
@@ -2311,8 +2338,8 @@ let Moon = (function() {
 
                     i++;
 
-                    descent = Math.ceil(ctx.measureText(r).actualBoundingBoxDescent);
-                    ctx.fillText(r, x * maxWidth, y * maxWidth + maxWidth - descent);
+
+                    ctx.fillText(r, x * maxWidth, y * maxWidth + descent);
 
                     // ctx.rect(x * maxWidth, y * maxWidth, maxWidth, maxWidth);
                     // ctx.stroke();
