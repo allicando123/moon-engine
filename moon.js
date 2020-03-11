@@ -4265,30 +4265,31 @@ let Moon = (function() {
         // 文本
         // entity.Text = (function() {
         //     /**
-        //      * 文本，初始化后不允许改变文本
+        //      * 文本，修改后需要重新加载
         //      * 加载时间长，但绘图效率比SpriteFont高
         //      */
-        //     function Text(text, font, position, size, color) {
+        //     function Text(text, position, size, color) {
         //         entity.DrawableEntity.call(this, position, size);
         //         this.color = color || new Float32Array([1, 1, 1, 1]);
-        //         // 绘制文本
-        //         let w = 0,
-        //             h = 0; // 计算文本大小
-        //         let isRow = true; // 表示刚刚换过行
-        //         let canvas = document.createElement('canvas'); // 保存文本图片
-        //         // 计算文本大小
-        //         for (let i = 0; i < text.length; i++) {
-        //             if (text[i] == '\n')
-        //                 isRow = true;
-        //             if (isRow) {
-        //                 h += font.measure(text[i]);
-        //                 isRow = false;
-        //             }
-        //             w += font.measure(text[i]);
-        //         }
-        //         // 绘制文本
-        //         font.draw()
+        //         this.canvas = document.createElement('canvas');
+        //         this.ctx = this.canvas.getContext('2d');
+        //         this.text = text;
+        //         this._dirty = true; // 表示画布是否需要重绘
         //     }
+        //     /**
+        //      * 设置文字
+        //      */
+        //     Text.prototype.setText = function(text) {
+        //         if (text === this.text) {
+        //             return;
+        //         }
+        //         this._dirty = true;
+        //         this.text = text;
+        //         let maxSize = 0;
+        //         for (let i = 0; i < this.text.length; i++) {
+
+        //         }
+        //     };
         //     return Text;
         // }());
 
