@@ -4786,7 +4786,7 @@ let Moon = (function() {
              * 将摄像机绑定在物体和世界中
              */
             Camera.prototype.lock = function(body, width, height) {
-                if (this.mode == moon.cameraMode.free)
+                if (this.mode == moon.Camera.cameraMode.free)
                     return;
                 this.position.x = body.position.x + (body.size.x - this.size.x) / 2;
                 this.position.y = body.position.y + (body.size.y - this.size.y) / 2;
